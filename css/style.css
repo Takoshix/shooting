@@ -1,0 +1,36 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: #05060d;
+  color: #cfe3ff;
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+#stage {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background:
+    radial-gradient(ellipse at 50% 40%, #101a33 0%, #05060d 70%);
+}
+#screen {
+  width: min(100%, calc((100vh - 64px) * 1.6));
+  height: auto;
+  aspect-ratio: 640 / 400;
+  display: block;
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #24406e, 0 0 40px rgba(60,130,255,.28), 0 18px 60px rgba(0,0,0,.7);
+}
+#hint {
+  font-size: 12px; line-height: 1.7;
+  color: #6f86ad;
+  text-align: center;
+  max-width: 900px;
+}
+@media (max-width: 720px) { #hint { font-size: 10px; } }
