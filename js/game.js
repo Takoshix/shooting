@@ -92,9 +92,9 @@
     if (e.def.bell) Items.spawnBell(G, e.x, e.y);
     /* (b) 大型はカプセルをまとめて落とす */
     if (e.def.caps) {
-      for (var c = 0; c < e.def.caps; c++) {
-        Items.spawnCapsule(G, e.x + U.rand(-20, 20), e.y + U.rand(-20, 20));
-      }
+      var got = Items.dropBulk(G, e.x, e.y, e.def.caps);
+      /* 画面内上限で出せなかったぶんは得点に振り替える */
+      if (got < e.def.caps) G.addScore((e.def.caps - got) * 2000 * G.mult());
       G.capCool = 0;
     }
     /* (c) 編隊を全滅させるとカプセル確定（グラディウス方式） */
@@ -102,13 +102,15 @@
       var f = G.forms[e.fid];
       f.alive--;
       if (f.alive <= 0 && f.total >= 3) {
-        if (Items.dropCapsule(G, e.x, e.y, true)) FX.text(e.x, e.y - 22, '編隊撃破!', '#ff8f5e', 11);
+        if (Items.dropCapsule(G, e.x, e.y)) FX.text(e.x, e.y - 22, '編隊撃破!', '#ff8f5e', 11);
         else G.addScore(1000 * G.mult());
       }
     }
     /* (d) 一定数倒すごとに必ずカプセル。敵が増えるほど供給も増える。
-       ただし出しすぎるとメーターが操作できなくなるので間隔で頭打ちにする */
-    if (G.killsSinceCap >= CFG.item.capsulePerKills) {
+       必要撃破数はウェーブとともに増える（10 → 60 匹）。
+       固定のままだと終盤に毎秒何個も降ってきて、画面がアイテムで埋まるうえ
+       メーターのカーソルが速く回りすぎて狙った装備を選べなくなる */
+    if (G.killsSinceCap >= CFG.killsPerCapsule(G.wave)) {
       G.killsSinceCap = 0;
       if (!Items.dropCapsule(G, e.x, e.y)) G.addScore(500 * G.mult());
     }
@@ -188,18 +190,13 @@
         if (Player.damage(G)) { onPlayerDeath(G); return; }
       }
     }
-    /* 敵本体 → 自機
-       ザコ（無害な敵）は何匹ぶつかってきても自機は壊れない。砕けて得点になるだけ。
-       敵が増えても体当たりの危険が増えない、という保証の実装部分。 */
+    /* 敵本体 → 自機。体当たりはどの敵でも自機を壊す。
+       ぶつかった敵のほうも、大型でなければ一緒に砕ける */
     for (i = 0; i < G.en.length; i++) {
       e = G.en[i];
       if (e.dead) continue;
       if (!U.hit(e, pl)) continue;
-      if (!Enemies.isArmored(e.def)) {
-        damageEnemy(G, e, 9999, e.x, e.y);   // 弾き飛ばして自爆
-        FX.addShake(1.2);
-        continue;
-      }
+      if (!e.def.boss && e.maxhp <= 8) damageEnemy(G, e, 9999, e.x, e.y);
       if (Player.damage(G)) { onPlayerDeath(G); return; }
     }
     /* アイテム → 自機（取得判定は甘めに） */
@@ -214,6 +211,16 @@
   function onPlayerDeath(G) {
     G.lives--;
     G.chain = 0;
+    /* 復帰位置の周りを空けておく。
+       敵が詰まったまま復帰すると、操作する間もなく連続で死に続ける
+       （いわゆる復活パターン殺し）。腕前と関係ない死に方を潰す */
+    for (var i = 0; i < G.en.length; i++) {
+      var e = G.en[i];
+      if (e.dead || e.def.boss) continue;
+      var dx = e.x - CFG.player.x, dy = e.y - CFG.H / 2;
+      if (dx * dx + dy * dy < 165 * 165) damageEnemy(G, e, 9999, e.x, e.y);
+    }
+    G.eb.length = 0;
     /* ペナルティは軽く。オプション 1 個だけ失う。
        全ロストにすると「死ぬほど難しくなる」典型的な難易度スパイクになるため */
     if (G.pw.options > 0) G.pw.options--;

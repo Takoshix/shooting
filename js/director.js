@@ -84,7 +84,7 @@
     clouds: function (G, n) {
       /* 雲は 1 回に 4 つまで。増やすとベルが画面に溜まって
          肝心の敵と弾が見えなくなる（数を増やす対象はザコだけでいい） */
-      var m = U.clamp(Math.round(n * 0.35), 1, 4);
+      var m = U.clamp(Math.round(n * 0.2), 1, 2);
       for (var i = 0; i < m; i++) {
         later(G, i * 0.4, 'cloud', CFG.W + 30, U.rand(40, CFG.H - 80));
       }

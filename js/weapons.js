@@ -4,13 +4,25 @@
    カプセルを取る → メーターのカーソルが 1 つ進む → X で発動して消費。
    どの順で何を取るかはプレイヤーの自由（＝武器構成の個性が出る）。
 
-   火力の伸び方（1 秒あたりの与ダメージ = DPS）の目安：
-     初期           約 10 DPS
-     オプション 4 つ 約 50 DPS
-     ＋レーザー      約 90 DPS
-     ＋チェイン最大  約 150 DPS
-   敵の HP は最後まで 1〜6 のまま上げないので、
-   1 匹を倒すのにかかる時間（TTK）は時間とともに “短く” なっていく。
+   装備はすべて多段階。1 段ごとに必ず何かが目に見えて変わるよう、
+   「弾の本数が増える段」と「威力が上がる段」を交互に並べてある。
+   本数だけ増やし続けると画面が自弾で埋まり、
+   威力だけ上げ続けると見た目が変わらず強くなった実感が出ないため。
+
+     SPEED   6 段 … 移動速度 195 → 387 px/秒
+     MISSILE 5 段 … 1 発 → 2 発 → 威力 → 4 発 → 追尾強化
+     DOUBLE  6 段 … 2way → 3way → 威力 → 5way → 威力 → 7way
+     LASER   6 段 … 貫通 → 長く → 2 本 → 威力 → 3 本 → 極太
+     OPTION  6 段 … 分身が 6 基まで。全弾がそのまま倍化する
+     FORCE   5 段 … バリアの耐弾数 3 → 5 → 7 → 9 → 12
+
+   火力の伸び（1 秒あたりの与ダメージ = DPS）の目安：
+     初期                 約 10 DPS
+     オプション 6 つ       約 70 DPS
+     ＋ショット最大        約 130 DPS
+     ＋チェイン最大        約 190 DPS
+   敵の HP は最後まで 1〜7 のまま上げないので、
+   1 匹を倒すのにかかる時間（TTK）は時間とともに短くなり続ける。
    ========================================================= */
 (function (w) {
   'use strict';
@@ -29,6 +41,7 @@
       laser: 0,
       shot: 'normal',  // 'normal' | 'double' | 'laser'
       options: 0,
+      force: 0,        // フォースフィールドの段数
       shield: 0,       // 残り耐弾数
       capsules: 0      // 通算取得数（統計表示用）
     };
@@ -36,7 +49,7 @@
 
   /* 総合的な強さ（0〜1）。BGM のレイヤーや演出の派手さに使う */
   Weapons.powerRatio = function (p) {
-    var v = p.speed / WP.doubleMax + p.missile / WP.missileMax +
+    var v = p.speed / CFG.player.speedMax + p.missile / WP.missileMax +
             Math.max(p.double / WP.doubleMax, p.laser / WP.laserMax) +
             p.options / WP.optionMax;
     return U.clamp(v / 4, 0, 1);
@@ -72,7 +85,11 @@
         if (p.options < WP.optionMax) { p.options++; ok = true; msg = 'OPTION ' + p.options; }
         break;
       case 'force':
-        p.shield = WP.shieldHits; ok = true; msg = 'FORCE FIELD';
+        /* 段が上がるほど耐弾数が増える。最大段でも取り直せば回復する */
+        if (p.force < WP.forceMax) { p.force++; msg = 'FORCE ' + p.force; }
+        else { msg = 'FORCE 回復'; }
+        p.shield = WP.shieldHits[p.force - 1];
+        ok = true;
         break;
     }
     if (ok) p.cursor = 0;
@@ -97,55 +114,97 @@
     return U.lerp(WP.fireInterval, WP.fireIntervalMin, t);
   };
 
+  /* ショット（DOUBLE 系）の段階表。
+     angles = 撃つ向き（ラジアン、0 が真正面）、dmg = 1 発の威力 */
+  var SHOT_STAGE = [
+    { angles: [0],                                  dmg: 1 },  // 未取得
+    { angles: [0, -0.62],                           dmg: 1 },  // 1: 2way
+    { angles: [0, -0.62, 0.62],                     dmg: 1 },  // 2: 3way
+    { angles: [0, -0.62, 0.62],                     dmg: 2 },  // 3: 威力
+    { angles: [0, -0.62, 0.62, -0.30, 0.30],        dmg: 2 },  // 4: 5way
+    { angles: [0, -0.62, 0.62, -0.30, 0.30],        dmg: 3 },  // 5: 威力
+    { angles: [0, -0.90, 0.90, -0.62, 0.62, -0.30, 0.30], dmg: 3 }  // 6: 7way
+  ];
+
+  /* レーザーの段階表。lines = 同時に出る本数の縦位置 */
+  var LASER_STAGE = [
+    null,
+    { len: 60,  dmg: 2, lines: [0],        w: 4.0 },  // 1: 貫通 1 本
+    { len: 92,  dmg: 2, lines: [0],        w: 4.5 },  // 2: 長く
+    { len: 92,  dmg: 3, lines: [-7, 7],    w: 3.6 },  // 3: 2 本
+    { len: 118, dmg: 5, lines: [-7, 7],    w: 4.0 },  // 4: 威力
+    { len: 118, dmg: 5, lines: [-10, 0, 10], w: 3.6 },// 5: 3 本
+    { len: 150, dmg: 8, lines: [-11, 0, 11], w: 5.0 } // 6: 極太
+  ];
+
   /* 1 発分の発射（自機本体とオプションの両方から呼ばれる） */
   Weapons.fireFrom = function (G, x, y, isOption) {
-    var p = G.pw, s = WP.bulletSpeed;
-    var angles = [0];
+    var p = G.pw, s = WP.bulletSpeed, i;
 
-    if (p.shot === 'double') {
-      if (p.double >= 1) angles.push(-0.62);
-      if (p.double >= 2) angles.push(0.62);
-      if (p.double >= 3) { angles.push(-0.3); angles.push(0.3); }
+    if (p.shot === 'laser' && p.laser > 0) {
+      var L = LASER_STAGE[Math.min(p.laser, WP.laserMax)];
+      /* オプションからは 1 本だけ。6 基 × 3 本だと画面が自弾で埋まる */
+      var lines = isOption ? [0] : L.lines;
+      for (i = 0; i < lines.length; i++) {
+        bullet(G, x + L.len * 0.5, y + lines[i], s * 1.5, 0, L.dmg, L.w, 'laser', 315,
+          { len: L.len, pierce: true, hitIds: Object.create(null), life: 1.2 });
+      }
+      /* レーザー時のチェイン追加ショットは通常弾で撃つ（本体のみ） */
+      if (!isOption) {
+        var extra = chainAngles(G);
+        for (i = 0; i < extra.length; i++) {
+          bullet(G, x, y, Math.cos(extra[i]) * s, Math.sin(extra[i]) * s,
+            WP.bulletDamage, 3.5, 'shot', 190);
+        }
+      }
+      return;
     }
-    /* チェインによる自動追加ショット（敵が多いほど自然に強くなる） */
-    if (G.chain >= CFG.chain.side1) { angles.push(-0.16); angles.push(0.16); }
-    if (G.chain >= CFG.chain.side2) { angles.push(-0.34); angles.push(0.34); }
 
-    if (p.shot === 'laser') {
-      var lv = p.laser;
-      var len = 52 + lv * 34;
-      var dmg = 1 + lv;
-      bullet(G, x + len * 0.5, y, s * 1.5, 0, dmg, 4, 'laser', 315,
-        { len: len, pierce: true, hitIds: Object.create(null), life: 1.2 });
-      if (lv >= 3) {
-        bullet(G, x + len * 0.5, y - 7, s * 1.5, 0, dmg, 3, 'laser', 300, { len: len, pierce: true, hitIds: Object.create(null), life: 1.2 });
-        bullet(G, x + len * 0.5, y + 7, s * 1.5, 0, dmg, 3, 'laser', 300, { len: len, pierce: true, hitIds: Object.create(null), life: 1.2 });
-      }
-      /* レーザー時もチェイン追加ショットは通常弾で出す */
-      for (var i = 1; i < angles.length; i++) {
-        bullet(G, x, y, Math.cos(angles[i]) * s, Math.sin(angles[i]) * s, WP.bulletDamage, 3.5, 'shot', 190);
-      }
+    var st = SHOT_STAGE[p.shot === 'double' ? Math.min(p.double, WP.doubleMax) : 0];
+    var angles = st.angles;
+    if (isOption) {
+      /* オプションは本数を絞る。本体と同じだけ撃たせると
+         6 基で 40 発を超え、敵も敵弾も自弾に隠れて見えなくなる */
+      angles = angles.slice(0, CFG.weapon.optionAngles);
     } else {
-      for (var j = 0; j < angles.length; j++) {
-        var a = angles[j];
-        bullet(G, x, y, Math.cos(a) * s, Math.sin(a) * s,
-          WP.bulletDamage, isOption ? 3.2 : 4, 'shot', a === 0 ? 190 : 150);
-      }
+      angles = angles.concat(chainAngles(G));
+    }
+    for (i = 0; i < angles.length; i++) {
+      var a = angles[i];
+      bullet(G, x, y, Math.cos(a) * s, Math.sin(a) * s,
+        st.dmg, isOption ? 3.2 : 4, 'shot', a === 0 ? 190 : 150);
     }
   };
 
-  /* ミサイル（別タイマーで発射される追尾兵器） */
+  /* チェインによる自動追加ショット（敵が多いほど自然に強くなる） */
+  function chainAngles(G) {
+    var out = [];
+    if (G.chain >= CFG.chain.side1) { out.push(-0.16, 0.16); }
+    if (G.chain >= CFG.chain.side2) { out.push(-0.40, 0.40); }
+    return out;
+  }
+
+  /* ミサイル（別タイマーで発射される追尾兵器）。5 段階 */
+  var MISSILE_STAGE = [
+    null,
+    { count: 1, dmg: 3, turn: 3.2, spd: 340 },  // 1: 下方向へ 1 発
+    { count: 2, dmg: 3, turn: 3.6, spd: 360 },  // 2: 上下へ 2 発
+    { count: 2, dmg: 5, turn: 4.0, spd: 380 },  // 3: 威力
+    { count: 4, dmg: 5, turn: 4.4, spd: 400 },  // 4: 4 発
+    { count: 4, dmg: 7, turn: 6.2, spd: 440 }   // 5: 威力と追尾性能
+  ];
+
   Weapons.fireMissile = function (G, x, y) {
     var p = G.pw;
     if (p.missile <= 0) return;
-    var dmg = WP.missileDamage + (p.missile - 1);
+    var M = MISSILE_STAGE[Math.min(p.missile, WP.missileMax)];
     var mk = function (dy, vy) {
-      bullet(G, x, y + dy, 210, vy, dmg, 6, 'missile', 30,
-        { life: 3.2, turn: 2.2 + p.missile * 1.1, spd: 300 + p.missile * 40 });
+      bullet(G, x, y + dy, 210, vy, M.dmg, 6, 'missile', 30,
+        { life: 3.2, turn: M.turn, spd: M.spd });
     };
     mk(4, 120);
-    if (p.missile >= 2) mk(-4, -120);
-    if (p.missile >= 3) { mk(10, 210); mk(-10, -210); }
+    if (M.count >= 2) mk(-4, -120);
+    if (M.count >= 4) { mk(10, 210); mk(-10, -210); }
   };
 
   /* ---------- 自機弾の更新 ---------- */

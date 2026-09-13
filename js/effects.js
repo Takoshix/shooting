@@ -126,7 +126,12 @@
     o.s = s; o.col = col || '#fff'; o.size = size || 11;
   };
 
-  FX.addShake = function (v) { FX.shake = Math.min(CFG.fx.shakeMax, FX.shake + v); };
+  /* 画面揺れ。CFG.fx.shake が false のときは何もしない。
+     狙って避ける操作中に画面が動くと、敵弾の位置が読めなくなるため既定は無効 */
+  FX.addShake = function (v) {
+    if (!CFG.fx.shake) return;
+    FX.shake = Math.min(CFG.fx.shakeMax, FX.shake + v);
+  };
   FX.stop = function (sec) { FX.hitStop = Math.max(FX.hitStop, sec); };
   FX.doFlash = function (a, hue) { FX.flash = Math.max(FX.flash, a); FX.flashHue = hue === undefined ? 200 : hue; };
 
@@ -152,10 +157,14 @@
       if (o.life <= 0) { o.on = false; continue; }
       o.y += o.vy * dt; o.vy *= 0.90;
     }
-    FX.shake = Math.max(0, FX.shake - dt * 34);
     FX.flash = Math.max(0, FX.flash - dt * 3.2);
-    var s = FX.shake;
-    FX.shakeX = U.rand(-s, s); FX.shakeY = U.rand(-s, s);
+    if (CFG.fx.shake) {
+      FX.shake = Math.max(0, FX.shake - dt * 34);
+      var s = FX.shake;
+      FX.shakeX = U.rand(-s, s); FX.shakeY = U.rand(-s, s);
+    } else {
+      FX.shake = FX.shakeX = FX.shakeY = 0;
+    }
   };
 
   FX.draw = function (g) {

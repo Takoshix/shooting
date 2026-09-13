@@ -1,8 +1,9 @@
 /* =========================================================
    enemies.js — 敵の種類・動き・攻撃
    ---------------------------------------------------------
-   重要：HP も弾速も、ゲームが進んでも一切変えない。
-   増えるのは「数」だけ。強くなるのは自機だけ。
+   HP は最後まで固定。増えるのは「数」と、CFG.curve に沿ってゆっくり上がる
+   「弾の量・弾速・狙いの精度」だけ。硬さは上げない。
+   硬くすると武器を強化した手応えがそのまま打ち消されてしまうため。
    ========================================================= */
 (function (w) {
   'use strict';
@@ -17,25 +18,22 @@
     waver:   { hp: 1,  r: 10, score: 160,   hue: 325, shape: 'lozenge', pat: 'sine',     spd: 120 },
     diver:   { hp: 2,  r: 11, score: 240,   hue: 45,  shape: 'dart',    pat: 'dive',     spd: 165 },
     turret:  { hp: 5,  r: 13, score: 520,   hue: 105, shape: 'turret',  pat: 'ground',   spd: 52, fires: 'aim' },
-    cloud:   { hp: 3,  r: 15, score: 300,   hue: 210, shape: 'cloud',   pat: 'drift',    spd: 42, bell: true, harmless: true },
+    cloud:   { hp: 3,  r: 15, score: 300,   hue: 210, shape: 'cloud',   pat: 'drift',    spd: 42, bell: true },
     pod:     { hp: 7,  r: 14, score: 900,   hue: 275, shape: 'pod',     pat: 'hover',    spd: 78, fires: 'spread' },
-    carrier: { hp: 46, r: 27, score: 6000,  hue: 18,  shape: 'carrier', pat: 'slow',     spd: 46, fires: 'aim', caps: 3 },
-    core:    { hp: 300,r: 46, score: 50000, hue: 350, shape: 'core',    pat: 'boss',     spd: 60, fires: 'boss', caps: 6, boss: true }
+    carrier: { hp: 46, r: 27, score: 6000,  hue: 18,  shape: 'carrier', pat: 'slow',     spd: 46, fires: 'aim', caps: 2 },
+    core:    { hp: 300,r: 46, score: 50000, hue: 350, shape: 'core',    pat: 'boss',     spd: 60, fires: 'boss', caps: 4, boss: true }
   };
   Enemies.TYPES = TYPES;
 
-  /* 自機を破壊しうる敵か？ HP が低い雑魚と雲は「無害な的」 */
-  Enemies.isArmored = function (d) {
-    if (d.harmless) return false;
-    return d.hp > TH.harmlessHp;
-  };
+  /* 撃ってくる敵か？（体当たりはどの敵でも自機を壊す） */
+  Enemies.isArmed = function (d) { return !!d.fires; };
 
-  /* 画面内の武装敵の数 */
-  Enemies.armoredCount = function (G) {
+  /* 画面内で撃ってくる敵の数 */
+  Enemies.armedCount = function (G) {
     var n = 0;
     for (var i = 0; i < G.en.length; i++) {
       var e = G.en[i];
-      if (!e.dead && Enemies.isArmored(e.def)) n++;
+      if (!e.dead && e.def.fires) n++;
     }
     return n;
   };
@@ -44,12 +42,12 @@
     if (G.en.length >= CFG.director.aliveMax && !TYPES[type].boss) return null;
 
     /* ---------------------------------------------------------
-       (1b) 危険な敵の総量を固定する。
-       武装敵が上限に達していたら、同じ数だけザコに差し替える。
-       「敵の数」は減らさず「危険の量」だけ一定に保つのがポイント。
+       撃ってくる敵の数に上限をかける（上限自体は CFG.curve で
+       ウェーブごとにゆっくり上がる）。超えた分はザコに差し替える。
+       敵の「数」は減らさず、弾の出どころだけを抑えるのが狙い。
        --------------------------------------------------------- */
-    if (!TYPES[type].boss && Enemies.isArmored(TYPES[type]) &&
-        Enemies.armoredCount(G) >= TH.armoredMax) {
+    if (!TYPES[type].boss && TYPES[type].fires &&
+        Enemies.armedCount(G) >= CFG.armedMax(G.wave)) {
       type = U.chance(0.5) ? 'zako' : 'waver';
     }
 
@@ -75,20 +73,22 @@
   };
 
   /* ---------------------------------------------------------
-     (1) 弾幕予算：画面上の敵弾が上限に近づくほど発射を渋る。
-     敵が何匹いても “空中の弾の数” がほぼ一定に保たれる中核処理。
+     弾幕予算：画面上の敵弾が上限に近づくほど発射を渋る。
+     敵が 5 匹でも 200 匹でも空中の弾数が予算内に収まる中核処理。
+     予算そのものはウェーブとともにゆっくり増える（16 → 34 発）。
      --------------------------------------------------------- */
   Enemies.canFire = function (G) {
+    var budget = CFG.bulletBudget(G.wave);
     var n = G.eb.length;
-    if (n >= TH.bulletBudget) return false;
-    var ratio = n / TH.bulletBudget;
+    if (n >= budget) return false;
+    var ratio = n / budget;
     if (ratio <= TH.softCapRatio) return true;
     var p = 1 - (ratio - TH.softCapRatio) / (1 - TH.softCapRatio);
     return Math.random() < p;
   };
 
   function eBullet(G, x, y, ang, spdMul) {
-    var s = TH.bulletSpeed * (spdMul || 1);
+    var s = CFG.enemyBulletSpeed(G.wave) * (spdMul || 1);
     G.eb.push({
       x: x, y: y, vx: Math.cos(ang) * s, vy: Math.sin(ang) * s,
       r: 4.2, life: 7, dead: false, t: 0
@@ -99,8 +99,9 @@
   function aimAt(G, e) {
     var pl = G.player;
     var a = Math.atan2(pl.y - e.y, pl.x - e.x);
-    /* (2) 狙いのブレは最後まで一定。精度が上がらない＝難しくならない */
-    return a + U.rand(-TH.aimError, TH.aimError);
+    /* 狙いのブレ。ウェーブとともに少しずつ精度が上がる（0.20 → 0.10 rad） */
+    var err = CFG.aimError(G.wave);
+    return a + U.rand(-err, err);
   }
 
   function doFire(G, e) {

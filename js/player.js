@@ -93,8 +93,12 @@
     if (!pl.alive || pl.inv > 0 || G.state !== 'playing') return false;
     if (G.pw.shield > 0) {
       G.pw.shield--;
+      /* 吸収のたびに短い無敵を付ける。
+         これが無いと敵に重なっている間は 1 フレームに 1 枚ずつ削れ、
+         「5 回耐える」はずのバリアが 0.08 秒で消えてしまう */
+      pl.inv = P.shieldGrace;
       FX.ring(pl.x, pl.y, 18, 120, 0.28, 30, 3);
-      FX.addShake(3);
+      FX.doFlash(0.12, 30);
       Snd.hit();
       return false;
     }
@@ -162,7 +166,8 @@
 
     /* シールド */
     if (G.pw.shield > 0) {
-      var a = 0.22 + 0.13 * (G.pw.shield / WP.shieldHits) + Math.sin(G.t * 9) * 0.05;
+      var maxHits = WP.shieldHits[Math.max(0, G.pw.force - 1)] || 3;
+      var a = 0.22 + 0.13 * (G.pw.shield / maxHits) + Math.sin(G.t * 9) * 0.05;
       g.strokeStyle = U.hsl(24, 100, 66, a + 0.35);
       g.lineWidth = 2;
       g.beginPath(); g.arc(pl.x, pl.y, 22, 0, U.TAU); g.stroke();

@@ -4,8 +4,9 @@
    実行: node tools/smoke-test.js
    確認すること:
      1. 読み込み時とプレイ中に JS エラーが出ないこと
-     2. 敵弾の数が「弾幕予算」を超えないこと（＝難易度が上がらない保証）
-     3. 時間経過で敵の密度と自機の火力が実際に増えること
+     2. 敵弾の数が、そのウェーブの「弾幕予算」を 1 フレームも超えないこと
+     3. 難易度の伸びが、敵の密度と火力の伸びより緩やかであること
+        （難易度カーブが暴走していないことの確認）
      4. 長時間回しても描画が破綻せずフレームが回り続けること
    ========================================================= */
 const path = require('path');
@@ -55,8 +56,15 @@ function serve() {
     const g = window.__game.G;
     const CFG = window.CFG;
     const out = {
-      maxEB: 0, ebOver: 0, maxEnemies: 0, samples: [],
-      dpsEarly: 0, dpsLate: 0, thrown: null
+      maxEB: 0, ebOver: 0, maxBudget: 0, maxEnemies: 0, samples: [], thrown: null,
+      curve: null
+    };
+    // 難易度カーブの伸び幅を先に記録しておく
+    out.curve = {
+      budget: [CFG.bulletBudget(0), CFG.bulletBudget(30)],
+      speed: [CFG.enemyBulletSpeed(0), CFG.enemyBulletSpeed(30)],
+      armed: [CFG.armedMax(0), CFG.armedMax(30)],
+      density: [CFG.enemiesPerSecond(0), CFG.enemiesPerSecond(30)]
     };
     try {
       window.__game.start();
@@ -69,8 +77,11 @@ function serve() {
         if (i % 37 === 1) window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX' }));
         window.__game.step(1);
 
+        // 予算はウェーブごとに変わるので、その時点の値と突き合わせる
+        const budget = CFG.bulletBudget(g.wave);
+        if (budget > out.maxBudget) out.maxBudget = budget;
         if (g.eb.length > out.maxEB) out.maxEB = g.eb.length;
-        if (g.eb.length > CFG.threat.bulletBudget) out.ebOver++;
+        if (g.eb.length > budget) out.ebOver++;
         if (g.en.length > out.maxEnemies) out.maxEnemies = g.en.length;
 
         if (i % (60 * 30) === 0) {                  // 30 秒ごとにスナップショット
@@ -78,7 +89,8 @@ function serve() {
             sec: Math.round(i / 60), wave: g.wave, enemies: g.en.length,
             ebullets: g.eb.length, kills: g.kills, score: g.score,
             options: g.pw.options, shot: g.pw.shot,
-            lvl: Math.max(g.pw.double, g.pw.laser), chain: g.chain
+            lvl: Math.max(g.pw.double, g.pw.laser), chain: g.chain,
+            budget: CFG.bulletBudget(g.wave)
           });
         }
       }
@@ -126,11 +138,19 @@ function serve() {
     console.log(
       `${String(s.sec).padStart(3)}s  wave${String(s.wave).padStart(2)}  ` +
       `敵:${String(s.enemies).padStart(3)}  敵弾:${String(s.ebullets).padStart(2)}  ` +
-      `撃破:${String(s.kills).padStart(5)}  OP:${s.options} ${s.shot}${s.lvl}  chain:${s.chain}`
+      `撃破:${String(s.kills).padStart(5)}  予算:${String(s.budget).padStart(2)}  ` +
+      `OP:${s.options} ${s.shot}${s.lvl}  chain:${s.chain}`
     );
   }
+  const c = stats.curve;
+  const ratio = (a) => (a[1] / a[0]).toFixed(1) + '倍';
+  console.log('--- 難易度カーブの伸び（ウェーブ 0 → 30）---');
+  console.log('敵の密度      :', c.density[0].toFixed(1), '→', c.density[1].toFixed(1), '匹/秒 ', ratio(c.density));
+  console.log('敵弾の上限    :', c.budget[0], '→', c.budget[1], '発      ', ratio(c.budget));
+  console.log('敵弾の速さ    :', c.speed[0].toFixed(0), '→', c.speed[1].toFixed(0), 'px/秒 ', ratio(c.speed));
+  console.log('撃ってくる敵  :', c.armed[0], '→', c.armed[1], '体      ', ratio(c.armed));
   console.log('--- 結果 ---');
-  console.log('敵弾の最大同時数 :', stats.maxEB, '(予算', 18, ')');
+  console.log('敵弾の最大同時数 :', stats.maxEB, '(その時点の予算上限', stats.maxBudget, ')');
   console.log('予算超過フレーム :', stats.ebOver);
   console.log('敵の最大同時数   :', stats.maxEnemies);
   console.log('最終スコア/撃破  :', stats.finalScore, '/', stats.finalKills);
@@ -144,7 +164,13 @@ function serve() {
 
   /* 判定：エラーなし・弾幕予算を守る・中央値 60fps・大きく落ちるフレームが 15% 未満。
      （このヘッドレス環境は GPU を使わないソフトウェア描画なので実機よりかなり重い） */
-  const fail = errors.length > 0 || stats.thrown || stats.ebOver > 0 ||
+  /* 難易度側（敵弾の上限・弾速）の伸びが火力の伸び（約 19 倍）より
+     十分に緩やかであることを確認する。ここが逆転すると設計が壊れる */
+  const diffGrowth = Math.max(c.budget[1] / c.budget[0], c.speed[1] / c.speed[0]);
+  const curveOk = diffGrowth <= 4;
+  console.log('難易度の伸び     :', diffGrowth.toFixed(1) + '倍', curveOk ? '(火力の伸び 約19倍 より十分に緩やか)' : '(伸びすぎ)');
+
+  const fail = errors.length > 0 || stats.thrown || stats.ebOver > 0 || !curveOk ||
                perf.median > 18 || perf.overRatio > 0.15;
   console.log(fail ? '\nNG' : '\nOK: エラーなし・弾幕予算も守られている');
   process.exit(fail ? 1 : 0);

@@ -44,10 +44,11 @@
 
       /* 取得段数を小さな四角で表示 */
       var maxv = HUD.slotMax(s.key);
+      var pw = maxv > 5 ? 4 : 5;          // 段数が多いスロットは間隔を詰める
       for (var k = 0; k < maxv; k++) {
-        var bx = x + (cw - 3) / 2 - (maxv * 5) / 2 + k * 5;
+        var bx = x + (cw - 3) / 2 - (maxv * pw) / 2 + k * pw;
         g.fillStyle = k < lit ? (active ? '#061018' : s.color) : 'rgba(120,150,190,.25)';
-        g.fillRect(bx, y + 13, 4, 3);
+        g.fillRect(bx, y + 13, pw - 1, 3);
       }
     }
 
@@ -77,7 +78,7 @@
       case 'double': return p.shot === 'double' ? p.double : 0;
       case 'laser': return p.shot === 'laser' ? p.laser : 0;
       case 'option': return p.options;
-      case 'force': return p.shield > 0 ? Math.ceil(p.shield / 2) : 0;
+      case 'force': return p.shield > 0 ? p.force : 0;
     }
     return 0;
   };
@@ -88,7 +89,7 @@
       case 'double': return CFG.weapon.doubleMax;
       case 'laser': return CFG.weapon.laserMax;
       case 'option': return CFG.weapon.optionMax;
-      case 'force': return 3;
+      case 'force': return CFG.weapon.forceMax;
     }
     return 1;
   };
@@ -123,16 +124,20 @@
       g.fillText(c + ' CHAIN  x' + G.mult(), CFG.W / 2, gy + 20);
     }
 
-    /* 敵は必ず画面右から入ってくるので、右上に情報を置くと必ず重なる。
-       左上にまとめる。「弾 n/18」は “危険の量は増えていない” ことを
-       プレイヤー自身が確認できる表示でもある */
+    /* 敵は必ず画面右から入ってくるので、右上に情報を置くと必ず重なる。左上にまとめる。
+       「敵弾 n/上限」は、そのウェーブで飛んでくる弾の量の天井を
+       プレイヤー自身がその場で確認できる表示でもある。
+       ※ 直前のチェイン表示で textAlign を center にしているので必ず戻す */
+    g.textAlign = 'left';
     g.font = 'bold 10px monospace';
     g.fillStyle = '#7fb4ff';
     g.fillText('WAVE ' + (G.wave + 1), 8, 44);
     g.fillStyle = '#55749f';
     g.fillText('敵 ' + G.en.length, 74, 44);
-    g.fillStyle = G.eb.length >= CFG.threat.bulletBudget ? '#ff8f7a' : '#55749f';
-    g.fillText('敵弾 ' + G.eb.length + '/' + CFG.threat.bulletBudget, 130, 44);
+    var budget = CFG.bulletBudget(G.wave);
+    g.fillStyle = G.eb.length >= budget ? '#ff8f7a' : '#55749f';
+    g.fillText('敵弾 ' + G.eb.length + '/' + budget, 130, 44);
+    g.textAlign = 'left';
   };
 
   /* ---------- タイトル ---------- */

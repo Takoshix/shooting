@@ -21,17 +21,33 @@
   ];
   Items.BELLS = BELLS;
 
-  /* 供給制限つきのカプセル投下。出せたら true。
-     force を渡すと画面内上限だけ見て間隔は無視する（編隊全滅のご褒美用） */
-  Items.dropCapsule = function (G, x, y, force) {
-    if (!force && G.capCool > 0) return false;
-    var n = 0;
-    for (var i = 0; i < G.it.length; i++) if (G.it[i].kind === 'capsule' && !G.it[i].dead) n++;
-    if (n >= CFG.item.capsuleOnScreenMax) return false;
+  /* 供給制限つきのカプセル投下。出せたら true、出せなければ false。
+     呼び出し側は false のとき得点ボーナスに振り替える */
+  Items.dropCapsule = function (G, x, y) {
+    if (G.capCool > 0) return false;
+    if (capsuleCount(G) >= CFG.item.capsuleOnScreenMax) return false;
     G.capCool = CFG.item.capsuleMinInterval;
     Items.spawnCapsule(G, x, y);
     return true;
   };
+
+  /* 大型艦を倒したときのまとめ落とし。
+     間隔の制限は無視する（ご褒美なので即座に出る）が、
+     画面内の上限は必ず守る。ここを素通りさせると、
+     せっかく絞った供給がボス戦のたびに崩れてアイテムだらけになる */
+  Items.dropBulk = function (G, x, y, n) {
+    for (var i = 0; i < n; i++) {
+      if (capsuleCount(G) >= CFG.item.capsuleOnScreenMax) return i;
+      Items.spawnCapsule(G, x + U.rand(-22, 22), y + U.rand(-22, 22));
+    }
+    return n;
+  };
+
+  function capsuleCount(G) {
+    var n = 0;
+    for (var i = 0; i < G.it.length; i++) if (G.it[i].kind === 'capsule' && !G.it[i].dead) n++;
+    return n;
+  }
 
   Items.spawnCapsule = function (G, x, y) {
     G.it.push({
@@ -44,7 +60,7 @@
     /* 画面に溜まりすぎたベルは出さない（見た目の情報量を一定に保つ） */
     var n = 0;
     for (var i = 0; i < G.it.length; i++) if (G.it[i].kind === 'bell' && !G.it[i].dead) n++;
-    if (n >= 6) return;
+    if (n >= CFG.item.bellOnScreenMax) return;
     G.it.push({
       kind: 'bell', x: x, y: y, vx: -34, vy: -30,
       r: 13, t: 0, life: IT.life + 6, dead: false, idx: 0
@@ -107,7 +123,10 @@
         else { p.shot = 'double'; if (p.double < CFG.weapon.doubleMax) p.double++; else G.addScore(2000); }
         break;
       case 'OPTION': if (p.options < CFG.weapon.optionMax) p.options++; else G.addScore(4000); break;
-      case 'FORCE':  p.shield = CFG.weapon.shieldHits; break;
+      case 'FORCE':
+        if (p.force < CFG.weapon.forceMax) p.force++;
+        p.shield = CFG.weapon.shieldHits[p.force - 1];
+        break;
     }
   };
 
