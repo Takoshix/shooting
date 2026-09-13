@@ -1,8 +1,10 @@
 /* =========================================================
    director.js — 敵の出現管理（ウェーブ進行）
    ---------------------------------------------------------
-   時間が経つと増えるのは「1 編隊の数」と「編隊を出す頻度」だけ。
-   敵の強さ・弾速・弾の量は director からは一切いじらない。
+   director が時間で変えるのは 2 つ。
+     ・1 編隊の数と、編隊を出す頻度（＝密度）
+     ・「数で押す編隊」と「撃ち返してくる編隊」の比率
+   敵の強さ・弾速・弾の量そのものは CFG.curve 側が持つ。
    ========================================================= */
 (function (w) {
   'use strict';
@@ -96,6 +98,56 @@
         later(G, i * 0.45, 'pod', CFG.W + 30, U.rand(50, CFG.H - 90));
       }
     },
+    /* ---- ここから撃ち返してくる編隊。armedMix の確率で選ばれる ---- */
+
+    /* 連射砲台。3 連射してくるので、居座られると弾が溜まる */
+    sentries: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.28), 2, 6);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.35, 'sentry', CFG.W + 30, 50 + (CFG.H - 130) * (i / Math.max(1, m - 1)));
+      }
+    },
+    /* 右端に居座る狙撃手。速い弾を撃つので先に潰したい */
+    snipers: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.18), 2, 4);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.34, 'sniper', CFG.W + 24, U.rand(40, CFG.H - 80));
+      }
+    },
+    /* 中型の砲艦。上下に動きながら 3way を撃つ */
+    gunships: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.16), 1, 4);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.5, 'gunship', CFG.W + 36, U.rand(70, CFG.H - 110));
+      }
+    },
+    /* 重装。ゆっくり押し込んでくるので、撃ち込みながら避ける必要がある */
+    bulwarks: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.1), 1, 3);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.8, 'bulwark', CFG.W + 40, U.rand(70, CFG.H - 110));
+      }
+      /* 護衛のザコ。重装に気を取られているところに刺さる */
+      var fid = fidSeq++;
+      for (var j = 0; j < Math.round(n * 0.5); j++) {
+        later(G, 1.0 + j * 0.12, 'zako', CFG.W + 24, U.rand(40, CFG.H - 70), { fid: fid });
+      }
+    },
+    /* 複合。硬い敵・撃つ敵・ザコが同時に来る後半の主力 */
+    assault: function (G, n) {
+      later(G, 0, 'bulwark', CFG.W + 40, U.rand(80, CFG.H - 120));
+      var m = U.clamp(Math.round(n * 0.18), 2, 5);
+      for (var i = 0; i < m; i++) {
+        later(G, 0.4 + i * 0.3, U.chance(0.5) ? 'sentry' : 'sniper',
+          CFG.W + 30, U.rand(40, CFG.H - 80));
+      }
+      var fid = fidSeq++;
+      for (var j = 0; j < Math.round(n * 0.6); j++) {
+        later(G, 1.2 + j * 0.1, U.chance(0.6) ? 'zako' : 'waver',
+          CFG.W + 24, U.rand(30, CFG.H - 60), { fid: fid });
+      }
+    },
+
     /* 大型艦＋護衛。撃ち込み感のご褒美 */
     carrier: function (G, n) {
       later(G, 0, 'carrier', CFG.W + 60, U.rand(90, CFG.H - 130));
@@ -132,16 +184,28 @@
     }
   };
 
-  /* ウェーブが浅いうちは単純なパターン、進むと種類が増える（難しくはならない） */
+  /* 編隊の選択。
+     まず「数で押す編隊」か「撃ち返してくる編隊」かを armedMix の確率で決め、
+     そのうえで、解禁済みのパターンから 1 つ選ぶ。
+     進むほど後者の比率が上がるので、火力が伸びても撃ち返される量が増える。 */
   function pickForm(G) {
+    var tw = CFG.threatWave(G);
+
+    if (U.chance(CFG.armedMix(tw)) && G.wave >= 2) {
+      var armed = ['sentries', 'turrets'];
+      if (G.wave >= 3) armed.push('snipers');
+      if (G.wave >= 5) armed.push('gunships', 'pods');
+      if (G.wave >= 7) armed.push('bulwarks', 'carrier');
+      if (G.wave >= 9) armed.push('assault', 'assault');
+      return U.pick(armed);
+    }
+
     var pool = ['train', 'wavey', 'vee'];
     if (G.wave >= 1) pool.push('clouds', 'divers');
-    if (G.wave >= 2) pool.push('turrets', 'swarm');
-    if (G.wave >= 4) pool.push('pods', 'carrier');
-    if (G.wave >= 6) pool.push('swarm', 'wavey', 'train');   // 密度重視の再投入
-    /* 後半は「数で押す」パターンの比率を上げる。強さではなく密度だけを上げる */
+    if (G.wave >= 2) pool.push('swarm');
+    if (G.wave >= 6) pool.push('swarm', 'wavey', 'train');
     if (G.wave >= 8) pool.push('wall', 'rain', 'swarm');
-    if (G.wave >= 12) pool.push('wall', 'rain', 'wall', 'rain');
+    if (G.wave >= 12) pool.push('wall', 'rain');
     return U.pick(pool);
   }
 

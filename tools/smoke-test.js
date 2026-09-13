@@ -64,6 +64,8 @@ function serve() {
       budget: [CFG.bulletBudget(0), CFG.bulletBudget(30)],
       speed: [CFG.enemyBulletSpeed(0), CFG.enemyBulletSpeed(30)],
       armed: [CFG.armedMax(0), CFG.armedMax(30)],
+      tough: [CFG.toughness(0), CFG.toughness(30)],
+      mix: [CFG.armedMix(0), CFG.armedMix(30)],
       density: [CFG.enemiesPerSecond(0), CFG.enemiesPerSecond(30)]
     };
     try {
@@ -77,11 +79,14 @@ function serve() {
         if (i % 37 === 1) window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX' }));
         window.__game.step(1);
 
-        // 予算はウェーブごとに変わるので、その時点の値と突き合わせる
-        const budget = CFG.bulletBudget(g.wave);
+        /* 予算はウェーブと自機の装備の両方で変わる。
+           しかも自機がパワーを失うと予算は下がるが、すでに飛んでいる弾は残る。
+           そこで「それまでに見た予算の最大値」を上限として検証する。
+           発射時に予算を守っていれば、この値を超えることはない。 */
+        const budget = CFG.bulletBudget(CFG.threatWave(g));
         if (budget > out.maxBudget) out.maxBudget = budget;
         if (g.eb.length > out.maxEB) out.maxEB = g.eb.length;
-        if (g.eb.length > budget) out.ebOver++;
+        if (g.eb.length > out.maxBudget) out.ebOver++;
         if (g.en.length > out.maxEnemies) out.maxEnemies = g.en.length;
 
         if (i % (60 * 30) === 0) {                  // 30 秒ごとにスナップショット
@@ -90,7 +95,7 @@ function serve() {
             ebullets: g.eb.length, kills: g.kills, score: g.score,
             options: g.pw.options, shot: g.pw.shot,
             lvl: Math.max(g.pw.double, g.pw.laser), chain: g.chain,
-            budget: CFG.bulletBudget(g.wave)
+            budget: CFG.bulletBudget(CFG.threatWave(g))
           });
         }
       }
@@ -149,6 +154,8 @@ function serve() {
   console.log('敵弾の上限    :', c.budget[0], '→', c.budget[1], '発      ', ratio(c.budget));
   console.log('敵弾の速さ    :', c.speed[0].toFixed(0), '→', c.speed[1].toFixed(0), 'px/秒 ', ratio(c.speed));
   console.log('撃ってくる敵  :', c.armed[0], '→', c.armed[1], '体      ', ratio(c.armed));
+  console.log('重装敵の HP   :', c.tough[0].toFixed(1), '→', c.tough[1].toFixed(1), '倍     ', ratio(c.tough));
+  console.log('武装編隊の比率:', (c.mix[0] * 100).toFixed(0) + '%', '→', (c.mix[1] * 100).toFixed(0) + '%');
   console.log('--- 結果 ---');
   console.log('敵弾の最大同時数 :', stats.maxEB, '(その時点の予算上限', stats.maxBudget, ')');
   console.log('予算超過フレーム :', stats.ebOver);
@@ -164,11 +171,11 @@ function serve() {
 
   /* 判定：エラーなし・弾幕予算を守る・中央値 60fps・大きく落ちるフレームが 15% 未満。
      （このヘッドレス環境は GPU を使わないソフトウェア描画なので実機よりかなり重い） */
-  /* 難易度側（敵弾の上限・弾速）の伸びが火力の伸び（約 19 倍）より
-     十分に緩やかであることを確認する。ここが逆転すると設計が壊れる */
-  const diffGrowth = Math.max(c.budget[1] / c.budget[0], c.speed[1] / c.speed[0]);
-  const curveOk = diffGrowth <= 4;
-  console.log('難易度の伸び     :', diffGrowth.toFixed(1) + '倍', curveOk ? '(火力の伸び 約19倍 より十分に緩やか)' : '(伸びすぎ)');
+  /* 難易度側の伸びが火力の伸び（約 19 倍）を追い越していないことを確認する。
+     追い越すと、強くなるほど不利という逆転が起きる */
+  const diffGrowth = Math.max(c.budget[1] / c.budget[0], c.armed[1] / c.armed[0], c.speed[1] / c.speed[0]);
+  const curveOk = diffGrowth <= 8;
+  console.log('難易度の伸び     :', diffGrowth.toFixed(1) + '倍', curveOk ? '(火力の伸び 約19倍 を超えていない)' : '(伸びすぎ)');
 
   const fail = errors.length > 0 || stats.thrown || stats.ebOver > 0 || !curveOk ||
                perf.median > 18 || perf.overRatio > 0.15;

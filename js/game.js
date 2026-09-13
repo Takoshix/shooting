@@ -97,6 +97,11 @@
       if (got < e.def.caps) G.addScore((e.def.caps - got) * 2000 * G.mult());
       G.capCool = 0;
     }
+    /* (b2) 硬い敵・撃ってくる敵は、それ自体がカプセル源。
+       敵が硬くなると撃破数が伸びず、撃破数基準の供給だけでは
+       パワーアップが止まってしまうため */
+    if (e.def.capChance && U.chance(e.def.capChance)) Items.dropCapsule(G, e.x, e.y);
+
     /* (c) 編隊を全滅させるとカプセル確定（グラディウス方式） */
     if (e.fid && G.forms[e.fid]) {
       var f = G.forms[e.fid];

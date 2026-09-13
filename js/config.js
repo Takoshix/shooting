@@ -127,21 +127,41 @@
 
     /* =========================================================
        難易度カーブ。難しくなる要素はすべてここに集約してある。
-       どれも「線形にゆっくり」「上限あり」。
-       いじるならここだけ見れば足りるし、ここ以外では難易度は上がらない。
+       どれも線形・上限つき。いじるならここだけ見れば足りる。
        ========================================================= */
     curve: {
       /* 画面に出せる敵弾の総数。これが難易度の主スイッチ */
-      budget:  { base: 16,   per: 0.70,   max: 34 },
-      /* 敵弾の速さ(px/秒)。自機の最低速度 195 を超えないよう上限を切ってある。
-         超えると「見てから避ける」が不可能になり、質的に別の難しさになる */
-      speed:   { base: 112,  per: 1.90,   max: 158 },
+      budget:   { base: 18,   per: 1.60,   max: 62 },
+      /* 敵弾の速さ(px/秒)。自機の最低速度 195 は超えさせない。
+         超えると「見てから避ける」が成立せず、質の違う難しさになる */
+      speed:    { base: 120,  per: 3.00,   max: 188 },
       /* 狙い撃ちのブレ幅(rad)。小さいほど正確＝難しい */
-      aim:     { base: 0.20, per: -0.005, min: 0.10 },
-      /* 撃ってくる敵の画面内上限。超える分はザコに差し替わる
-         （敵の数は減らさず、飛んでくる弾の出どころだけ抑える） */
-      armed:   { base: 6,    per: 0.42,   max: 16 }
+      aim:      { base: 0.20, per: -0.006, min: 0.06 },
+      /* 撃ってくる敵の画面内上限。超える分はザコに差し替わる */
+      armed:    { base: 8,    per: 0.95,   max: 34 },
+      /* 重装敵（HP 10 以上）だけに掛かる HP 倍率。
+         ザコの HP は 1〜2 のまま動かさない。
+         全体を硬くすると「武器を強くした手応え」がそのまま消えるが、
+         撃ち込み対象だけを硬くするぶんには、雑魚を薙ぎ払う快感は残る */
+      tough:    { base: 1.0,  per: 0.075,  max: 2.6 },
+      /* 編隊が「撃ってくる／硬い」型になる確率。
+         数の暴力だけでは火力が伸びた側が一方的に強くなるので、
+         進むほど “撃ち返してくる相手” の比率そのものを上げる */
+      armedMix: { base: 0.10, per: 0.035,  max: 0.66 }
     },
+
+    /* ---------------------------------------------------------
+       装備に連動した脅威（いわゆるラバーバンド）。
+
+       脅威を時間だけに紐づけると、火力の伸び（約 19 倍）に対して
+       脅威の伸びが小さすぎて、パワーアップするほど楽になってしまう。
+       そこで「実効ウェーブ = 経過ウェーブ + 装備の充実度 × この値」とし、
+       フル装備なら 9 ウェーブぶん先の脅威と戦うことにする。
+
+       注意：上げすぎると「強くなったら罰される」感覚になる。
+       火力の伸びのほうが依然として大きいことが前提の補正値。
+       --------------------------------------------------------- */
+    threatFromPower: 9,
 
     /* ---------- 敵の湧き（ディレクター） ---------- */
     director: {
@@ -158,7 +178,7 @@
          難易度そのものになる。密度が自機の火力で掃ける量を超えると
          立つ場所が無くなり、腕前と無関係に事故死するだけのゲームになる。
          中盤の火力（約 70 DPS）で捌ける量から逆算してある */
-      aliveMax: 200,
+      aliveMax: 190,
       bossEvery: 6          // このウェーブ数ごとに大型艦（ご褒美タイム）
     },
 
@@ -177,8 +197,11 @@
 
       /* 何匹倒すごとに 1 個出るか。ウェーブが進むほど必要数を増やす。
          終盤は毎秒 90 匹倒すので、固定値のままだとアイテムが洪水になる。
-         「敵が増えるほど 1 個が遠くなる」ことで供給レートが平らになる */
-      killsPerCapsule: { base: 10, per: 3.0, max: 60 },
+         「敵が増えるほど 1 個が遠くなる」ことで供給レートが平らになる。
+         ただし硬い敵が増えると撃破数そのものが伸びなくなるので、
+         重装敵は撃破時に個別にカプセルを落とす（capChance）。
+         「硬い相手を倒したぶんだけ強くなる」という手応えも兼ねている */
+      killsPerCapsule: { base: 10, per: 1.8, max: 34 },
 
       /* 最短でもこの間隔を空ける。供給レートの天井 */
       capsuleMinInterval: 1.6,
@@ -231,10 +254,19 @@
   }
   CFG.ramp = ramp;
 
-  CFG.bulletBudget = function (wave) { return Math.round(ramp(CFG.curve.budget, wave)); };
-  CFG.enemyBulletSpeed = function (wave) { return ramp(CFG.curve.speed, wave); };
-  CFG.aimError = function (wave) { return ramp(CFG.curve.aim, wave); };
-  CFG.armedMax = function (wave) { return Math.round(ramp(CFG.curve.armed, wave)); };
+  /* 実効ウェーブ。経過時間に、自機の装備の充実度を足したもの。
+     脅威側のパラメータはすべてこの値で評価する */
+  CFG.threatWave = function (G) {
+    var ratio = (w.Weapons && G.pw) ? Weapons.powerRatio(G.pw) : 0;
+    return G.wave + ratio * CFG.threatFromPower;
+  };
+
+  CFG.bulletBudget = function (tw) { return Math.round(ramp(CFG.curve.budget, tw)); };
+  CFG.enemyBulletSpeed = function (tw) { return ramp(CFG.curve.speed, tw); };
+  CFG.aimError = function (tw) { return ramp(CFG.curve.aim, tw); };
+  CFG.armedMax = function (tw) { return Math.round(ramp(CFG.curve.armed, tw)); };
+  CFG.toughness = function (tw) { return ramp(CFG.curve.tough, tw); };
+  CFG.armedMix = function (tw) { return ramp(CFG.curve.armedMix, tw); };
   CFG.killsPerCapsule = function (wave) { return Math.round(ramp(CFG.item.killsPerCapsule, wave)); };
 
   /* そのウェーブでの敵の湧き間隔（秒） */
