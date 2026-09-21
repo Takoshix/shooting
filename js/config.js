@@ -67,12 +67,21 @@
 
       /* 装備はどれも多段階。1 段ごとに手応えが変わるように、
          「弾の数が増える段」と「威力が上がる段」を交互に配置してある。
-         同じ段数でも伸びが単調にならないようにするため */
-      doubleMax: 6,          // 2way→3way→威力→5way→威力→7way
-      laserMax: 6,           // 貫通→長く→2本→威力→3本→極太
-      missileMax: 5,         // 1発→2発→威力→4発→追尾強化
-      missileInterval: 0.52,
-      missileDamage: 3,
+         同じ段数でも伸びが単調にならないようにするため。
+
+         レーザーは廃止した。貫通する一本の線は、
+         並んだ敵をまとめて貫いてしまうぶん他の武器より明確に強く、
+         しかも画面を覆って敵と敵弾を隠す。
+         代わりに「数で押す」3 系統に置き換えてある。
+           VULCAN  … 正面に広がる拡散弾。手数の土台
+           HOMING  … 曲がって追いかける弾の群れ。散った敵に強い
+           CLUSTER … 着弾で爆発し、破片を全方位に撒く。固まった敵に強い
+         どれも排他ではなく、取ったぶんだけ同時に撃つ */
+      vulcanMax: 6,          // 2way→3way→威力→5way→威力→7way
+      homingMax: 6,          // 1発→2発→威力→4発→威力→6発
+      homingInterval: 0.30,
+      clusterMax: 6,         // 1発→範囲→2発→破片増→威力→3発
+      clusterInterval: 0.85,
 
       optionMax: 6,          // オプション（マルチプル）最大数
       optionGap: 10,         // オプション同士の距離（自機の軌跡を何フレーム遡るか）
@@ -88,9 +97,9 @@
        カプセルを取るとカーソルが 1 つ進み、X で発動して消費する。 */
     slots: [
       { key: 'speed',   label: 'SPEED',   color: '#7fe3ff' },
-      { key: 'missile', label: 'MISSILE', color: '#ffd45e' },
-      { key: 'double',  label: 'DOUBLE',  color: '#7dff9a' },
-      { key: 'laser',   label: 'LASER',   color: '#ff7ad1' },
+      { key: 'cluster', label: 'CLUSTER', color: '#ffd45e' },
+      { key: 'vulcan',  label: 'VULCAN',  color: '#7dff9a' },
+      { key: 'homing',  label: 'HOMING',  color: '#ff7ad1' },
       { key: 'option',  label: 'OPTION',  color: '#b79cff' },
       { key: 'force',   label: 'FORCE',   color: '#ff8f5e' }
     ],
@@ -191,8 +200,8 @@
          「1 個の重みを上げて、数をぐっと減らす」方針。
          画面を埋めるのは敵であってアイテムではない。
 
-         必要数の目安：装備をひと通り最大にするのに約 64 個
-         （SPEED6=6 + MISSILE5=10 + SHOT6=18 + OPTION6=30）。
+         必要数の目安：装備をひと通り最大にするのに約 84 個
+         （SPEED6=6 + CLUSTER6=12 + VULCAN6=18 + HOMING6=24 + OPTION6=30）。
          下の設定だと 1 個あたり最短 2.4 秒なので、
          だいたい 5〜6 分でフル装備に届く計算になる。
          --------------------------------------------------------- */

@@ -15,7 +15,8 @@
   var BELLS = [
     { name: 'SCORE',  hue: 50,  col: '#ffd84a', desc: '+3000' },
     { name: 'SPEED',  hue: 200, col: '#5ec8ff', desc: 'SPEED UP' },
-    { name: 'TWIN',   hue: 0,   col: '#ffffff', desc: 'SHOT UP' },
+    { name: 'VULCAN', hue: 0,   col: '#ffffff', desc: 'VULCAN UP' },
+    { name: 'HOMING', hue: 320, col: '#ff7ad1', desc: 'HOMING UP' },
     { name: 'OPTION', hue: 130, col: '#6dff92', desc: 'OPTION' },
     { name: 'FORCE',  hue: 10,  col: '#ff6a5e', desc: 'BARRIER' }
   ];
@@ -118,10 +119,8 @@
     switch (b.name) {
       case 'SCORE':  G.addScore(3000); break;
       case 'SPEED':  if (p.speed < CFG.player.speedMax) p.speed++; else G.addScore(2000); break;
-      case 'TWIN':
-        if (p.shot === 'laser') { if (p.laser < CFG.weapon.laserMax) p.laser++; else G.addScore(2000); }
-        else { p.shot = 'double'; if (p.double < CFG.weapon.doubleMax) p.double++; else G.addScore(2000); }
-        break;
+      case 'VULCAN': if (p.vulcan < CFG.weapon.vulcanMax) p.vulcan++; else G.addScore(2000); break;
+      case 'HOMING': if (p.homing < CFG.weapon.homingMax) p.homing++; else G.addScore(2000); break;
       case 'OPTION': if (p.options < CFG.weapon.optionMax) p.options++; else G.addScore(4000); break;
       case 'FORCE':
         if (p.force < CFG.weapon.forceMax) p.force++;

@@ -15,7 +15,7 @@
     var pl = {
       x: P.x, y: P.y, r: P.r,
       vx: 0, vy: 0,
-      cool: 0, mcool: 0,
+      cool: 0, hcool: 0, ccool: 0,
       inv: P.invincible,
       alive: true, wait: 0,
       hist: [],
@@ -75,15 +75,25 @@
       for (var o = 0; o < pl.opts.length; o++) {
         Weapons.fireFrom(G, pl.opts[o].x + 10, pl.opts[o].y, true);
       }
-      if (G.pw.shot === 'laser') Snd.laser(); else Snd.shot(G.pw.options);
+      Snd.shot(G.pw.options);
       FX.spark(pl.x + 18, pl.y, U.rand(-90, -30), U.rand(-20, 20), 0.1, 1.6, 190);
     }
 
-    /* --- ミサイル（独立タイマー） --- */
-    pl.mcool -= dt;
-    if (G.pw.missile > 0 && Input.down('shot') && pl.mcool <= 0) {
-      pl.mcool = WP.missileInterval;
-      Weapons.fireMissile(G, pl.x + 8, pl.y);
+    /* --- 追尾弾とクラスタは、それぞれ独立したタイマーで撃つ ---
+       主砲と同じ間隔にすると、連射が速くなったときに
+       追尾弾とクラスタまで倍増して画面が自弾で埋まるため */
+    pl.hcool -= dt;
+    if (G.pw.homing > 0 && Input.down('shot') && pl.hcool <= 0) {
+      pl.hcool = WP.homingInterval;
+      Weapons.fireHoming(G, pl.x + 10, pl.y);
+      Snd.homing();
+    }
+
+    pl.ccool -= dt;
+    if (G.pw.cluster > 0 && Input.down('shot') && pl.ccool <= 0) {
+      pl.ccool = WP.clusterInterval;
+      Weapons.fireCluster(G, pl.x + 10, pl.y);
+      Snd.launch();
     }
   };
 

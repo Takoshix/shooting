@@ -84,7 +84,14 @@
     shotCool = now + 0.045;
     blip({ type: 'square', f0: 1250 + level * 90, f1: 420, dur: 0.055, vol: 0.075 });
   };
-  Snd.laser = function () { blip({ type: 'sawtooth', f0: 900, f1: 2400, dur: 0.09, vol: 0.07 }); };
+  var homingCool = 0;
+  Snd.homing = function () {
+    var now = Snd.ctx ? Snd.ctx.currentTime : 0;
+    if (now < homingCool) return;
+    homingCool = now + 0.12;
+    blip({ type: 'triangle', f0: 620, f1: 1500, dur: 0.1, vol: 0.06 });
+  };
+  Snd.launch = function () { blip({ type: 'sawtooth', f0: 260, f1: 90, dur: 0.14, vol: 0.09 }); };
   Snd.hit   = function () { blip({ type: 'square', f0: 320, f1: 160, dur: 0.035, vol: 0.05 }); };
   Snd.boom  = function (size) {
     size = size || 1;

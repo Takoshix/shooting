@@ -171,11 +171,11 @@ function serve() {
 
   /* 判定：エラーなし・弾幕予算を守る・中央値 60fps・大きく落ちるフレームが 15% 未満。
      （このヘッドレス環境は GPU を使わないソフトウェア描画なので実機よりかなり重い） */
-  /* 難易度側の伸びが火力の伸び（約 19 倍）を追い越していないことを確認する。
-     追い越すと、強くなるほど不利という逆転が起きる */
+  /* 難易度側の伸びが火力の伸び（tools/dps-bench.js の実測で約 67 倍）を
+     追い越していないことを確認する。追い越すと、強くなるほど不利という逆転が起きる */
   const diffGrowth = Math.max(c.budget[1] / c.budget[0], c.armed[1] / c.armed[0], c.speed[1] / c.speed[0]);
   const curveOk = diffGrowth <= 8;
-  console.log('難易度の伸び     :', diffGrowth.toFixed(1) + '倍', curveOk ? '(火力の伸び 約19倍 を超えていない)' : '(伸びすぎ)');
+  console.log('難易度の伸び     :', diffGrowth.toFixed(1) + '倍', curveOk ? '(火力の伸び 約67倍 を超えていない)' : '(伸びすぎ)');
 
   const fail = errors.length > 0 || stats.thrown || stats.ebOver > 0 || !curveOk ||
                perf.median > 18 || perf.overRatio > 0.15;

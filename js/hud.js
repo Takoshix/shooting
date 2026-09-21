@@ -74,9 +74,9 @@
     var p = G.pw;
     switch (key) {
       case 'speed': return p.speed;
-      case 'missile': return p.missile;
-      case 'double': return p.shot === 'double' ? p.double : 0;
-      case 'laser': return p.shot === 'laser' ? p.laser : 0;
+      case 'cluster': return p.cluster;
+      case 'vulcan': return p.vulcan;
+      case 'homing': return p.homing;
       case 'option': return p.options;
       case 'force': return p.shield > 0 ? p.force : 0;
     }
@@ -85,9 +85,9 @@
   HUD.slotMax = function (key) {
     switch (key) {
       case 'speed': return CFG.player.speedMax;
-      case 'missile': return CFG.weapon.missileMax;
-      case 'double': return CFG.weapon.doubleMax;
-      case 'laser': return CFG.weapon.laserMax;
+      case 'cluster': return CFG.weapon.clusterMax;
+      case 'vulcan': return CFG.weapon.vulcanMax;
+      case 'homing': return CFG.weapon.homingMax;
       case 'option': return CFG.weapon.optionMax;
       case 'force': return CFG.weapon.forceMax;
     }

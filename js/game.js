@@ -129,6 +129,28 @@
     else Snd.hit();
   }
 
+  /* ---------- クラスタの爆発 ----------
+     着弾か時限で炸裂し、範囲内の敵をまとめて叩いたうえで
+     破片を全方位に撒く。範囲攻撃と弾幕を兼ねる武器。
+     weapons.js からも呼ばれるので G のメソッドとして置く。 */
+  G.explodeCluster = function (b) {
+    var size = 0.9 + b.radius / 70;
+    FX.boom(b.x, b.y, size, 42);
+    FX.ring(b.x, b.y, 6, b.radius * 4.5, 0.3, 42, 3);
+    FX.doFlash(0.07, 40);
+    Snd.boom(size * 0.8);
+
+    var r2 = b.radius * b.radius;
+    for (var i = 0; i < G.en.length; i++) {
+      var e = G.en[i];
+      if (e.dead) continue;
+      var dx = e.x - b.x, dy = e.y - b.y;
+      var reach = b.radius + e.r;
+      if (dx * dx + dy * dy < reach * reach) damageEnemy(G, e, b.dmg, e.x, e.y);
+    }
+    Weapons.spawnFrags(G, b.x, b.y, b.frags, b.fragDmg);
+  };
+
   /* ---------- ボム ---------- */
   function useBomb(G) {
     if (G.bombs <= 0 || G.bombT > 0 || !G.player.alive) return;
@@ -152,34 +174,26 @@
   function collide(G) {
     var i, j, b, e, o;
 
-    /* 自機弾 → 敵 */
+    /* 自機弾 → 敵。
+       クラスタだけは当たった相手に直接ダメージを与えるのではなく、
+       その場で炸裂させる（範囲ダメージと破片は explodeCluster が行う） */
     for (i = 0; i < G.pb.length; i++) {
       b = G.pb[i];
       if (b.dead) continue;
       for (j = 0; j < G.en.length; j++) {
         e = G.en[j];
-        if (e.dead) continue;
-        var ok;
-        if (b.kind === 'laser') {
-          ok = Math.abs(b.x - e.x) < b.len + e.r && Math.abs(b.y - e.y) < b.r + e.r;
-          if (ok && b.hitIds[e.id]) ok = false;
-        } else {
-          ok = U.hit(b, e);
-        }
-        if (!ok) continue;
-        damageEnemy(G, e, b.dmg, b.x, b.y);
-        if (b.pierce) { b.hitIds[e.id] = 1; }
-        else { b.dead = true; break; }
+        if (e.dead || !U.hit(b, e)) continue;
+        b.dead = true;
+        if (b.kind === 'cluster') G.explodeCluster(b);
+        else damageEnemy(G, e, b.dmg, b.x, b.y);
+        break;
       }
       if (b.dead) continue;
       /* 自機弾 → ベル（撃つと色が変わる） */
       for (j = 0; j < G.it.length; j++) {
         o = G.it[j];
         if (o.dead || o.kind !== 'bell') continue;
-        if (U.hit(b, o)) {
-          Items.shot(G, o);
-          if (!b.pierce) { b.dead = true; break; }
-        }
+        if (U.hit(b, o)) { Items.shot(G, o); b.dead = true; break; }
       }
     }
 
