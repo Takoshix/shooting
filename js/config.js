@@ -119,31 +119,47 @@
        --------------------------------------------------------- */
     ships: [
       {
-        id: 'balance', name: 'TYPE-B', jp: 'バランス',
+        id: 'balance', sprite: 'p001', name: 'TYPE-B', jp: 'バランス',
         hp: 5, speedMod: 0, fireMul: 1.00, hitR: 3.5,
         start: { vulcan: 1 },
         color: '#7fe3ff',
-        desc: 'どれも平均。迷ったらこれ',
+        desc: 'どれも平均',
         detail: '癖が無く、どの武器を伸ばしても噛み合う'
       },
       {
-        id: 'assault', name: 'TYPE-A', jp: '強襲',
-        hp: 3, speedMod: 34, fireMul: 0.84, hitR: 3.2,
+        id: 'light', sprite: 'p011', name: 'TYPE-L', jp: '軽量',
+        hp: 3, speedMod: 40, fireMul: 0.88, hitR: 3.0,
+        start: { vulcan: 1, homing: 1 },
+        color: '#9fe8c0',
+        desc: '最速・最小の判定',
+        detail: '当たり判定が最も小さい。避けきれるなら最強だが HP は 3'
+      },
+      {
+        id: 'assault', sprite: 'p015', name: 'TYPE-A', jp: '強襲',
+        hp: 3, speedMod: 28, fireMul: 0.82, hitR: 3.2,
         start: { vulcan: 2 },
         color: '#ff8f5e',
-        desc: '速いが打たれ弱い',
-        detail: '避けきる前提の機体。HP は 3 しかない'
+        desc: '連射が最も速い',
+        detail: '手数で押し切る機体。耐久を火力に振り切っている'
       },
       {
-        id: 'heavy', name: 'TYPE-H', jp: '重装',
+        id: 'strike', sprite: 'p012', name: 'TYPE-X', jp: '打撃',
+        hp: 5, speedMod: -6, fireMul: 1.05, hitR: 3.8,
+        start: { cluster: 1, vulcan: 1 },
+        color: '#ffd45e',
+        desc: '爆発と拡散を併せ持つ',
+        detail: 'CLUSTER と VULCAN を 1 段ずつ。群れを崩すのが得意'
+      },
+      {
+        id: 'heavy', sprite: 'p010', name: 'TYPE-H', jp: '重装',
         hp: 9, speedMod: -30, fireMul: 1.18, hitR: 4.4,
         start: { cluster: 2 },
-        color: '#ffd45e',
+        color: '#ff7ad1',
         desc: '硬いが鈍い',
-        detail: 'CLUSTER 持ち。多少の被弾は許容して撃ち込み続ける'
+        detail: 'HP 9。多少の被弾は許容して撃ち込み続ける機体'
       },
       {
-        id: 'support', name: 'TYPE-S', jp: '支援',
+        id: 'support', sprite: 'p014', name: 'TYPE-S', jp: '支援',
         hp: 4, speedMod: 10, fireMul: 1.00, hitR: 3.5,
         start: { homing: 2, options: 1 },
         color: '#b79cff',
@@ -356,20 +372,6 @@
   /* 1 秒あたりに湧く敵の数（＝密度の指標）。時間とともに増える */
   CFG.enemiesPerSecond = function (wave) {
     return CFG.spawnCount(wave) / CFG.spawnInterval(wave);
-  };
-
-  /* sprite/ から読みに行く画像の名前一覧。
-     無いものは黙って無視され、ベクタ絵のまま動く（sprite/README.md 参照） */
-  CFG.spriteList = function () {
-    var list = ['option', 'item-capsule'];
-    for (var i = 0; i < CFG.ships.length; i++) list.push('ship-' + CFG.ships[i].id);
-    var enemies = ['zako', 'waver', 'diver', 'turret', 'cloud', 'pod',
-                   'sentry', 'sniper', 'gunship', 'bulwark',
-                   'weaver', 'splitter', 'shielder', 'mine', 'carrier', 'core'];
-    for (var j = 0; j < enemies.length; j++) list.push('enemy-' + enemies[j]);
-    var bells = ['score', 'speed', 'vulcan', 'homing', 'option', 'force'];
-    for (var k = 0; k < bells.length; k++) list.push('bell-' + bells[k]);
-    return list;
   };
 
   w.CFG = CFG;

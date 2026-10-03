@@ -181,98 +181,95 @@
 
   /* ---------- 機体選択 ---------- */
   HUD.drawSelect = function (G, g) {
-    g.fillStyle = 'rgba(3,6,16,.86)';
+    g.fillStyle = 'rgba(3,6,16,.88)';
     g.fillRect(0, 0, CFG.W, CFG.H);
 
     g.textAlign = 'center';
-    g.font = 'bold 20px monospace';
+    g.font = 'bold 18px monospace';
     g.fillStyle = '#eaf4ff';
-    g.fillText('機体を選ぶ', CFG.W / 2, 44);
+    g.fillText('機体を選ぶ', CFG.W / 2, 26);
     g.font = '10px monospace';
     g.fillStyle = '#6f95c9';
-    g.fillText('強さの総和は揃えてある。どこを捨てるかを選ぶ', CFG.W / 2, 62);
+    g.fillText('強さの総和は揃えてある。どこを捨てるかを選ぶ', CFG.W / 2, 42);
 
-    var n = CFG.ships.length;
-    var cw = 136, gap = 12;
-    var total = n * cw + (n - 1) * gap;
-    var x0 = (CFG.W - total) / 2, y0 = 82, ch = 214;
+    /* 6 機を 3 列 2 段で並べる */
+    var n = CFG.ships.length, COLS = 3;
+    var cw = 192, chh = 118, gx = 10, gy = 10;
+    var x0 = (CFG.W - (COLS * cw + (COLS - 1) * gx)) / 2, y0 = 54;
 
     for (var i = 0; i < n; i++) {
       var sh = CFG.ships[i];
-      var x = x0 + i * (cw + gap);
+      var col = i % COLS, row = (i / COLS) | 0;
+      var x = x0 + col * (cw + gx), y = y0 + row * (chh + gy);
       var on = (i === G.shipIndex);
 
-      g.fillStyle = on ? 'rgba(18,34,64,.95)' : 'rgba(9,14,28,.8)';
-      g.fillRect(x, y0, cw, ch);
-      g.strokeStyle = on ? sh.color : 'rgba(90,140,220,.3)';
+      g.fillStyle = on ? 'rgba(18,34,64,.95)' : 'rgba(9,14,28,.78)';
+      g.fillRect(x, y, cw, chh);
+      g.strokeStyle = on ? sh.color : 'rgba(90,140,220,.28)';
       g.lineWidth = on ? 2 : 1;
-      g.strokeRect(x + 0.5, y0 + 0.5, cw - 1, ch - 1);
+      g.strokeRect(x + 0.5, y + 0.5, cw - 1, chh - 1);
 
-      /* 機体の絵。画像があればそれを、無ければ簡単な図形を描く */
-      var cx = x + cw / 2, cy = y0 + 42;
-      if (!Sprites.draw(g, 'ship-' + sh.id, cx, cy, 34)) {
+      /* 機体の絵。画像が無ければ簡単な図形で代用する */
+      var cx = x + 62, cy = y + 36;
+      if (!Sprites.drawW(g, sh.sprite, cx, cy, 104)) {
         g.save();
         g.translate(cx, cy);
         g.fillStyle = on ? '#dbe9ff' : '#8fa6c8';
         g.beginPath();
-        g.moveTo(22, 0); g.lineTo(2, -8); g.lineTo(-13, -10); g.lineTo(-8, 0);
-        g.lineTo(-13, 10); g.lineTo(2, 8); g.closePath(); g.fill();
+        g.moveTo(26, 0); g.lineTo(2, -9); g.lineTo(-16, -11); g.lineTo(-10, 0);
+        g.lineTo(-16, 11); g.lineTo(2, 9); g.closePath(); g.fill();
         g.fillStyle = sh.color;
         g.beginPath();
-        g.moveTo(15, 0); g.lineTo(0, -4); g.lineTo(-8, 0); g.lineTo(0, 4); g.closePath(); g.fill();
+        g.moveTo(17, 0); g.lineTo(0, -4); g.lineTo(-10, 0); g.lineTo(0, 4); g.closePath(); g.fill();
         g.restore();
       }
 
-      g.textAlign = 'center';
-      g.font = 'bold 14px monospace';
+      g.textAlign = 'left';
+      g.font = 'bold 13px monospace';
       g.fillStyle = on ? sh.color : '#9fb6d6';
-      g.fillText(sh.name, cx, y0 + 82);
-      g.font = 'bold 11px monospace';
+      g.fillText(sh.name, x + 10, y + 72);
+      g.font = 'bold 10px monospace';
       g.fillStyle = on ? '#eaf4ff' : '#7f96b8';
-      g.fillText(sh.jp, cx, y0 + 98);
+      g.fillText(sh.jp, x + 72, y + 72);
 
       /* 3 つの指標を同じ軸で並べる。機体ごとの差が形で分かるように */
       var stats = [
         { k: '耐久', v: sh.hp / 9 },
-        { k: '速度', v: (195 + sh.speedMod - 160) / 80 },
-        { k: '連射', v: (1.25 - sh.fireMul) / 0.45 }
+        { k: '速度', v: (195 + sh.speedMod - 155) / 85 },
+        { k: '連射', v: (1.26 - sh.fireMul) / 0.46 }
       ];
       for (var s2 = 0; s2 < stats.length; s2++) {
-        var sy = y0 + 116 + s2 * 16;
-        g.textAlign = 'left';
+        var sy = y + 80 + s2 * 11;
         g.font = '9px monospace';
         g.fillStyle = '#6f95c9';
         g.fillText(stats[s2].k, x + 10, sy + 7);
-        var barX = x + 38, barW = cw - 48;
+        var barX = x + 38, barW = 70;
         g.fillStyle = 'rgba(120,150,190,.2)';
-        g.fillRect(barX, sy, barW, 7);
-        g.fillStyle = on ? sh.color : 'rgba(140,170,210,.5)';
-        g.fillRect(barX, sy, barW * U.clamp(stats[s2].v, 0.08, 1), 7);
+        g.fillRect(barX, sy, barW, 6);
+        g.fillStyle = on ? sh.color : 'rgba(140,170,210,.45)';
+        g.fillRect(barX, sy, barW * U.clamp(stats[s2].v, 0.08, 1), 6);
       }
 
       /* 初期装備 */
-      g.textAlign = 'center';
       g.font = '9px monospace';
       g.fillStyle = '#9fd0ff';
       var eq = [];
       for (var key in sh.start) eq.push(key.toUpperCase() + ' ' + sh.start[key]);
-      g.fillText(eq.join('  '), cx, y0 + 180);
-
-      g.fillStyle = on ? '#cfe3ff' : '#60779a';
-      g.font = '9px monospace';
-      wrapText(g, sh.desc, cx, y0 + 196, cw - 14, 11);
+      g.textAlign = 'right';
+      var ey = y + 87;
+      for (var q = 0; q < eq.length; q++) { g.fillText(eq[q], x + cw - 10, ey); ey += 11; }
     }
 
     var sel = CFG.ships[G.shipIndex];
     g.textAlign = 'center';
     g.font = '11px monospace';
     g.fillStyle = sel.color;
-    g.fillText(sel.detail, CFG.W / 2, 318);
+    g.fillText(sel.detail, CFG.W / 2, 324);
 
     var a = 0.5 + Math.sin(G.t * 5) * 0.5;
     g.font = 'bold 13px monospace';
     g.fillStyle = 'rgba(255,255,255,' + a + ')';
-    g.fillText('← →  で選択      Z  で決定', CFG.W / 2, 346);
+    g.fillText('← ↑ ↓ →  で選択      Z  で決定', CFG.W / 2, 352);
     g.textAlign = 'left';
   };
 

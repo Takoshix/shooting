@@ -14,27 +14,35 @@
 
   /* 敵の定義表。hp はここで固定。時間経過で強化されることはない */
   var TYPES = {
-    zako:    { hp: 1,  r: 10, score: 120,   hue: 195, shape: 'wedge',   pat: 'straight', spd: 140 },
-    waver:   { hp: 1,  r: 10, score: 160,   hue: 325, shape: 'lozenge', pat: 'sine',     spd: 120 },
-    diver:   { hp: 2,  r: 11, score: 240,   hue: 45,  shape: 'dart',    pat: 'dive',     spd: 165 },
-    turret:  { hp: 5,  r: 13, score: 520,   hue: 105, shape: 'turret',  pat: 'ground',   spd: 52, fires: 'aim', capChance: 0.12 },
-    cloud:   { hp: 3,  r: 15, score: 300,   hue: 210, shape: 'cloud',   pat: 'drift',    spd: 42, bell: true },
-    pod:     { hp: 7,  r: 14, score: 900,   hue: 275, shape: 'pod',     pat: 'hover',    spd: 78, fires: 'spread', capChance: 0.2 },
+    zako:    { hp: 1,  r: 10, score: 120,   hue: 195, shape: 'wedge',   pat: 'straight', spd: 140, sprW: 24, variants: ['e029', 'e038'] },
+    waver:   { hp: 1,  r: 10, score: 160,   hue: 325, shape: 'lozenge', pat: 'sine',     spd: 120, sprW: 24, variants: ['e036', 'e055'] },
+    diver:   { hp: 2,  r: 11, score: 240,   hue: 45,  shape: 'dart',    pat: 'dive',     spd: 165, sprW: 27, variants: ['e024', 'e033'] },
+    turret:  { hp: 5,  r: 13, score: 520,   hue: 105, shape: 'turret',  pat: 'ground',   spd: 52, fires: 'aim', capChance: 0.12, sprW: 30, variants: ['e020'] },
+    cloud:   { hp: 3,  r: 15, score: 300,   hue: 210, shape: 'cloud',   pat: 'drift',    spd: 42, bell: true, sprW: 33, variants: ['e047'] },
+    pod:     { hp: 7,  r: 14, score: 900,   hue: 275, shape: 'pod',     pat: 'hover',    spd: 78, fires: 'spread', capChance: 0.2, sprW: 32, variants: ['e023', 'e043', 'e053'] },
     /* --- ここから撃ち返してくる／硬い敵。
        ザコを薙ぎ払うだけにならないよう、火力が伸びたら相手も増える --- */
-    sentry:  { hp: 14, r: 14, score: 1200,  hue: 160, shape: 'sentry',  pat: 'hover',    spd: 74, fires: 'aim',    burst: 3, gap: [1.5, 2.6], capChance: 0.35 },
-    sniper:  { hp: 10, r: 12, score: 1000,  hue: 52,  shape: 'sniper',  pat: 'edge',     spd: 130, fires: 'snipe',  gap: [1.3, 2.2], capChance: 0.30, linger: 7 },
-    gunship: { hp: 24, r: 18, score: 2600,  hue: 32,  shape: 'gunship', pat: 'strafe',   spd: 98, fires: 'spread', burst: 2, gap: [1.4, 2.4], capChance: 0.60 },
-    bulwark: { hp: 38, r: 22, score: 4200,  hue: 218, shape: 'bulwark', pat: 'push',     spd: 36, fires: 'fan',    gap: [1.8, 2.8], capChance: 0.95 },
+    sentry:  { hp: 14, r: 14, score: 1200,  hue: 160, shape: 'sentry',  pat: 'hover',    spd: 74, fires: 'aim',    burst: 3, gap: [1.5, 2.6], capChance: 0.35, sprW: 36, variants: ['e027', 'e039', 'e052'] },
+    sniper:  { hp: 10, r: 12, score: 1000,  hue: 52,  shape: 'sniper',  pat: 'edge',     spd: 130, fires: 'snipe',  gap: [1.3, 2.2], capChance: 0.30, linger: 7, sprW: 32, variants: ['e031', 'e044'] },
+    gunship: { hp: 24, r: 18, score: 2600,  hue: 32,  shape: 'gunship', pat: 'strafe',   spd: 98, fires: 'spread', burst: 2, gap: [1.4, 2.4], capChance: 0.60, sprW: 45, variants: ['e025', 'e032', 'e058'] },
+    bulwark: { hp: 38, r: 22, score: 4200,  hue: 218, shape: 'bulwark', pat: 'push',     spd: 36, fires: 'fan',    gap: [1.8, 2.8], capChance: 0.95, sprW: 53, variants: ['e026', 'e035', 'e049', 'e057'] },
     /* --- 動きと倒し方に癖のある敵 --- */
-    weaver:   { hp: 6,  r: 12, score: 800,   hue: 72,  shape: 'weaver',   pat: 'loop',   spd: 185 },
-    splitter: { hp: 12, r: 16, score: 1400,  hue: 185, shape: 'splitter', pat: 'sine',   spd: 96, splits: 2, capChance: 0.2 },
-    shielder: { hp: 20, r: 18, score: 2400,  hue: 250, shape: 'shielder', pat: 'push',   spd: 44, fires: 'aim', gap: [1.9, 3.0], armor: 14, capChance: 0.5 },
-    mine:     { hp: 4,  r: 13, score: 700,   hue: 15,  shape: 'mine',     pat: 'drift',  spd: 30, burstOnDeath: 8, proximity: 54 },
-    carrier: { hp: 46, r: 27, score: 6000,  hue: 18,  shape: 'carrier', pat: 'slow',     spd: 46, fires: 'aim', caps: 2 },
-    core:    { hp: 300,r: 46, score: 50000, hue: 350, shape: 'core',    pat: 'boss',     spd: 60, fires: 'boss', caps: 4, boss: true }
+    weaver:   { hp: 6,  r: 12, score: 800,   hue: 72,  shape: 'weaver',   pat: 'loop',   spd: 185, sprW: 30, variants: ['e028', 'e045', 'e059'] },
+    splitter: { hp: 12, r: 16, score: 1400,  hue: 185, shape: 'splitter', pat: 'sine',   spd: 96, splits: 2, capChance: 0.2, sprW: 37, variants: ['e021', 'e046'] },
+    shielder: { hp: 20, r: 18, score: 2400,  hue: 250, shape: 'shielder', pat: 'push',   spd: 44, fires: 'aim', gap: [1.9, 3.0], armor: 14, capChance: 0.5, sprW: 42, variants: ['e030', 'e048'] },
+    mine:     { hp: 4,  r: 13, score: 700,   hue: 15,  shape: 'mine',     pat: 'drift',  spd: 30, burstOnDeath: 8, proximity: 54, sprW: 29, variants: ['e034', 'e050'] },
+    carrier: { hp: 46, r: 27, score: 6000,  hue: 18,  shape: 'carrier', pat: 'slow',     spd: 46, fires: 'aim', caps: 2, sprW: 68, variants: ['e022', 'e040', 'e042', 'e054', 'e056'] },
+    core:    { hp: 300,r: 46, score: 50000, hue: 350, shape: 'core',    pat: 'boss',     spd: 60, fires: 'boss', caps: 4, boss: true, sprW: 108, variants: ['e037', 'e041', 'e051'] }
   };
   Enemies.TYPES = TYPES;
+
+  /* その種類に割り当てられた絵のうち 1 つを選ぶ。
+     同じ挙動でも見た目が変わるので、画面の情報量が増える。
+     編隊でそろえたいときは opt.variant を渡す */
+  Enemies.pickVariant = function (type) {
+    var v = TYPES[type] && TYPES[type].variants;
+    return v ? v[(Math.random() * v.length) | 0] : null;
+  };
 
   /* 撃ってくる敵か？（体当たりはどの敵でも自機を壊す） */
   Enemies.isArmed = function (d) { return !!d.fires; };
@@ -63,8 +71,14 @@
     }
 
     var d = TYPES[type];
+    /* 上の差し替えで種類が変わった場合、呼び出し側が指定した変種は
+       別の種類のものなので使えない。黙って絵が消えるのを防ぐため捨てる */
+    var wanted = opt && opt.variant;
+    if (wanted && (!d.variants || d.variants.indexOf(wanted) < 0)) wanted = null;
+
     var e = {
       id: uid++, type: type, def: d,
+      variant: wanted || Enemies.pickVariant(type),
       x: x, y: y, y0: y, r: d.r,
       hp: d.hp, maxhp: d.hp,
       hue: d.hue, shape: d.shape, pat: d.pat,
@@ -73,7 +87,7 @@
       fireT: U.rand(0.8, 2.6),
       flash: 0, dead: false, fid: 0, side: 1, dropCap: false
     };
-    if (opt) for (var k in opt) e[k] = opt[k];
+    if (opt) for (var k in opt) { if (k !== 'variant') e[k] = opt[k]; }
 
     /* 重装敵（HP 10 以上）だけ、実効ウェーブに応じて硬くする。
        ザコ（HP 1〜2）は最後まで一撃。
@@ -219,7 +233,9 @@
        画面端が撃ってくる敵で埋まってしまう（実際に 16 体溜まった）。
        滞留時間を必ず持たせるのはそのため */
     edge: function (e, dt) {
-      var stopX = CFG.W - 42;
+      /* 停止位置を個体ごとにずらす。全員が同じ x で止まると
+         絵が重なって何体いるのか分からなくなる */
+      var stopX = CFG.W - 42 - (e.id % 5) * 26;
       if (e.x > stopX) { e.x += e.vx * dt; return; }
       if (e.t < (e.def.linger || 7)) {
         e.y = e.y0 + Math.sin(e.t * 1.1 + e.ph) * 58;
@@ -495,24 +511,52 @@
     return c;
   }
 
-  /* 画像から焼く */
-  function bakeImage(img, h, white, d) {
-    var scale = h / img.naturalHeight;
-    var ww = img.naturalWidth * scale;
-    var c = makeCanvas(ww, h);
+  /* 画像から焼く。横幅を基準に縮尺を決める
+     （素材はどれも横長なので、高さ基準だと画面を埋めてしまう）。
+
+     素材はそのまま貼ると暗い機体色が黒い背景に溶けて見えなくなるので、
+     種類ごとの色でシルエットの縁取りを焼き込んでから絵を重ねる。
+     これで「色＝種類」という手がかりを残したまま、元の絵も活きる。
+     毎フレームやると重いので、ここで 1 回だけ作ってしまう。 */
+  var OUTLINE = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]];
+
+  function bakeImage(img, wpx, white, d) {
+    var scale = wpx / img.naturalWidth;
+    var hh = Math.max(2, img.naturalHeight * scale);
+    var pad = 2;
+    var c = makeCanvas(wpx + pad * 2, hh + pad * 2);
     var g = c.getContext('2d');
-    g.drawImage(img, 0, 0, c.width, c.height);
+    g.imageSmoothingQuality = 'high';
+
+    /* 単色のシルエットを作る。source-atop は不透明な画素だけを塗る */
+    var sil = makeCanvas(wpx, hh);
+    var sg = sil.getContext('2d');
+    sg.imageSmoothingQuality = 'high';
+    sg.drawImage(img, 0, 0, sil.width, sil.height);
+    sg.globalCompositeOperation = 'source-atop';
+    sg.fillStyle = white ? hitColor(d) : U.hsl(d.hue, 85, 52);
+    sg.fillRect(0, 0, sil.width, sil.height);
+
+    g.globalAlpha = white ? 1 : 0.7;
+    for (var i = 0; i < OUTLINE.length; i++) {
+      g.drawImage(sil, pad + OUTLINE[i][0], pad + OUTLINE[i][1]);
+    }
+    g.globalAlpha = 1;
+
     if (white) {
-      /* source-atop なら不透明な部分だけを塗れる＝輪郭が崩れない */
+      /* 被弾表示。縁取りごと光らせたいので、シルエットをそのまま重ねる */
+      g.drawImage(sil, pad, pad);
+    } else {
+      g.drawImage(img, pad, pad, wpx, hh);
+      /* 暗い素材を少しだけ持ち上げる */
       g.globalCompositeOperation = 'source-atop';
-      g.fillStyle = hitColor(d);
-      g.globalAlpha = 0.85;
+      g.fillStyle = U.hsl(d.hue, 80, 62, 0.10);
       g.fillRect(0, 0, c.width, c.height);
     }
     return c;
   }
 
-  /* ベクタ絵から焼く */
+  /* ベクタ絵から焼く（画像が無いときの代用） */
   function bakeShape(d, half, white) {
     var c = makeCanvas(half * 2, half * 2);
     var g = c.getContext('2d');
@@ -522,18 +566,26 @@
     return c;
   }
 
+  /* 種類 × 変種のぶんだけ焼いておく。
+     1 匹ごとに画像を縮小しながら描くと、敵が 150 匹いる場面で重くなる */
   function buildSprites() {
     SPR = {};
     for (var name in TYPES) {
       var d = TYPES[name];
-      var img = Sprites.get('enemy-' + name);
-      if (img) {
-        var h = d.sprH || Math.round(d.r * 2.2);
-        var n = bakeImage(img, h, false, d);
-        SPR[name] = { w: n.width, h: n.height, normal: n, flash: bakeImage(img, h, true, d) };
-      } else if (name === 'core') {
-        continue;                                   // ボスは脈動するのでその場で描く
-      } else {
+      var vs = d.variants || [null];
+      var any = false;
+      for (var i = 0; i < vs.length; i++) {
+        var img = vs[i] ? Sprites.get(vs[i]) : null;
+        if (!img) continue;
+        var n = bakeImage(img, d.sprW || Math.round(d.r * 2.6), false, d);
+        SPR[name + '|' + vs[i]] = {
+          w: n.width, h: n.height, normal: n,
+          flash: bakeImage(img, d.sprW || Math.round(d.r * 2.6), true, d)
+        };
+        any = true;
+      }
+      /* 画像が 1 枚も無い種類はベクタ絵で代用する（core はその場で描く） */
+      if (!any && name !== 'core') {
         var half = Math.ceil(d.r * 1.7);
         SPR[name] = { w: half * 2, h: half * 2, normal: bakeShape(d, half, false), flash: bakeShape(d, half, true) };
       }
@@ -544,7 +596,13 @@
     if (!SPR) buildSprites();
     for (var i = 0; i < G.en.length; i++) {
       var e = G.en[i];
-      var sp = SPR[e.type];
+      var sp = (e.variant && SPR[e.type + '|' + e.variant]) || SPR[e.type];
+      if (!sp && e.def.variants) {
+        /* 指定の絵が見つからないときは、同じ種類の別の絵で代用する */
+        for (var vi = 0; vi < e.def.variants.length && !sp; vi++) {
+          sp = SPR[e.type + '|' + e.def.variants[vi]];
+        }
+      }
       if (sp) {
         g.drawImage(e.flash > 0 ? sp.flash : sp.normal, (e.x - sp.w / 2) | 0, (e.y - sp.h / 2) | 0);
       } else {
@@ -565,14 +623,16 @@
         g.stroke();
       }
 
-      /* 体力の多い敵だけ HP バーを出す */
-      if (e.maxhp > 8) {
-        var wpx = e.def.boss ? 90 : 46;
+      /* HP バーは「硬くて、かつ既に傷んでいる敵」にだけ出す。
+         常時出すと、画面にいる敵の数だけ緑の棒が並んで絵が見えなくなる */
+      if (e.maxhp >= 18 && e.hp < e.maxhp) {
+        var wpx = e.def.boss ? 90 : 40;
         var rate = U.clamp(e.hp / e.maxhp, 0, 1);
-        g.fillStyle = 'rgba(0,0,0,.55)';
-        g.fillRect(e.x - wpx / 2, e.y - e.r - 12, wpx, 4);
-        g.fillStyle = U.hsl(U.lerp(0, 130, rate) | 0, 90, 55);
-        g.fillRect(e.x - wpx / 2, e.y - e.r - 12, wpx * rate, 4);
+        var by = e.y - (sp ? sp.h / 2 : e.r) - 7;
+        g.fillStyle = 'rgba(0,0,0,.5)';
+        g.fillRect(e.x - wpx / 2, by, wpx, 3);
+        g.fillStyle = U.hsl(U.lerp(0, 130, rate) | 0, 85, 52);
+        g.fillRect(e.x - wpx / 2, by, wpx * rate, 3);
       }
     }
   };

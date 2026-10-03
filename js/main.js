@@ -19,8 +19,8 @@
     Input.onFirstInput = function () { Snd.init(); Snd.resume(); };
 
     FX.initStars();
-    /* sprite/ に画像があれば使う。無ければベクタ絵のまま動く */
-    Sprites.preload(CFG.spriteList());
+    /* sprite/opt/manifest.js があればその画像を使う。無ければベクタ絵のまま動く */
+    Sprites.load();
     Sprites.onChange = function () { if (w.Enemies) Enemies.invalidateSprites(); };
     G.reset();
     G.state = 'title';

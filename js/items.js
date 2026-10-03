@@ -181,14 +181,15 @@
       if (o.life < 3 && ((o.t * 12) | 0) % 2 === 0) continue;
       var y = o.y;
       if (o.kind === 'capsule') {
-        /* sprite/item-capsule.png があればそれを使う */
-        if (!Sprites.draw(g, 'item-capsule', o.x, y, 20)) {
+        /* アイテムの画像が用意されていればそれを使う。
+           無ければコードで描いた絵（既定） */
+        if (!Sprites.drawW(g, 'item-capsule', o.x, y, 22)) {
           g.drawImage(SPR.capsule, (o.x - SH) | 0, (y - SH) | 0);
         }
       } else {
         y += Math.sin(o.t * 7) * 1.6;
         var id = 'bell-' + BELLS[o.idx].name.toLowerCase();
-        if (!Sprites.draw(g, id, o.x, y, 24)) {
+        if (!Sprites.drawW(g, id, o.x, y, 24)) {
           g.drawImage(SPR.bells[o.idx], (o.x - SH) | 0, (y - SH) | 0);
         }
       }

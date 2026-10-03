@@ -157,10 +157,6 @@
     for (var i = 0; i < pl.opts.length; i++) {
       var o = pl.opts[i];
       var ph = G.t * 6 + i;
-      if (Sprites.has('option')) {
-        Sprites.draw(g, 'option', o.x, o.y, 16);
-        continue;
-      }
       g.save();
       g.translate(o.x, o.y);
       g.globalCompositeOperation = 'lighter';
@@ -179,8 +175,8 @@
     /* 無敵中は点滅 */
     if (pl.inv > 0 && ((G.t * 20) | 0) % 2 === 0) return;
 
-    /* sprite/ship-<id>.png があればそれを使う。無ければ下のベクタ絵 */
-    if (Sprites.has('ship-' + pl.ship.id)) {
+    /* 機体の画像があればそれを使う。無ければ下のベクタ絵 */
+    if (Sprites.has(pl.ship.sprite)) {
       var fl2 = 10 + Math.sin(pl.engine) * 4;
       g.globalCompositeOperation = 'lighter';
       g.fillStyle = U.hsl(200, 100, 62, 0.8);
@@ -188,7 +184,7 @@
       g.moveTo(pl.x - 11, pl.y - 3.5); g.lineTo(pl.x - 11 - fl2, pl.y); g.lineTo(pl.x - 11, pl.y + 3.5);
       g.closePath(); g.fill();
       g.globalCompositeOperation = 'source-over';
-      Sprites.draw(g, 'ship-' + pl.ship.id, pl.x, pl.y, pl.ship.id === 'heavy' ? 30 : 26, pl.tilt);
+      Sprites.drawW(g, pl.ship.sprite, pl.x, pl.y, 44, pl.tilt);
       drawShield(G, g, pl);
       return;
     }

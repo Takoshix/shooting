@@ -299,8 +299,8 @@
       var n = CFG.ships.length;
       if (Input.tap('left'))  { G.shipIndex = (G.shipIndex + n - 1) % n; Snd.hit(); }
       if (Input.tap('right')) { G.shipIndex = (G.shipIndex + 1) % n; Snd.hit(); }
-      if (Input.tap('up'))    { G.shipIndex = (G.shipIndex + n - 1) % n; Snd.hit(); }
-      if (Input.tap('down'))  { G.shipIndex = (G.shipIndex + 1) % n; Snd.hit(); }
+      if (Input.tap('up'))    { G.shipIndex = (G.shipIndex + n - 3) % n; Snd.hit(); }
+      if (Input.tap('down'))  { G.shipIndex = (G.shipIndex + 3) % n; Snd.hit(); }
       if (Input.tap('shot') || Input.tap('power')) {
         G.reset(G.shipIndex); G.state = 'playing'; Snd.equip();
       }
