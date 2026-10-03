@@ -104,6 +104,10 @@
     setTimeout(function () { blip({ type: 'square', f0: 784, f1: 1046, dur: 0.16, vol: 0.11 }); }, 70);
   };
   Snd.bell  = function (step) { blip({ type: 'triangle', f0: 880 + step * 180, f1: 1760 + step * 180, dur: 0.14, vol: 0.13 }); };
+  Snd.damage = function () {
+    blip({ type: 'square', f0: 220, f1: 90, dur: 0.18, vol: 0.16 });
+    noise(0.2, 0.18, 1200, 200);
+  };
   Snd.death = function () { noise(0.9, 0.42, 900, 60); blip({ type: 'sawtooth', f0: 380, f1: 30, dur: 0.9, vol: 0.2 }); };
   Snd.bomb  = function () { noise(1.1, 0.42, 2600, 70); blip({ type: 'triangle', f0: 90, f1: 28, dur: 0.9, vol: 0.3 }); };
 

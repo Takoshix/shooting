@@ -134,11 +134,159 @@
     g.fillText('WAVE ' + (G.wave + 1), 8, 44);
     g.fillStyle = '#55749f';
     g.fillText('敵 ' + G.en.length, 74, 44);
-    var budget = CFG.bulletBudget(G.wave);
+    /* 敵が実際に使っている上限と同じ式で出す。
+       ここだけ経過ウェーブで計算すると、表示より多い弾が飛んでいるように見える */
+    var budget = CFG.bulletBudget(CFG.threatWave(G));
     g.fillStyle = G.eb.length >= budget ? '#ff8f7a' : '#55749f';
     g.fillText('敵弾 ' + G.eb.length + '/' + budget, 130, 44);
     g.textAlign = 'left';
+
+    HUD.drawHp(G, g);
   };
+
+  /* ---------- 自機の体力 ----------
+     目盛りを 1 つずつ並べる。バーを 1 本引くより、
+     「あと何発耐えられるか」が数えられるほうが判断しやすい */
+  HUD.drawHp = function (G, g) {
+    var pl = G.player;
+    if (!pl) return;
+    var x = 8, y = 52, bw = 11, bh = 9, gap = 2;
+
+    g.font = 'bold 10px monospace';
+    g.textAlign = 'left';
+    g.fillStyle = '#55749f';
+    g.fillText('HP', x, y + 8);
+
+    var ox = x + 22;
+    for (var i = 0; i < pl.maxHp; i++) {
+      var filled = i < pl.hp;
+      if (filled) {
+        /* 残りが少ないほど赤くする */
+        var rate = pl.hp / pl.maxHp;
+        g.fillStyle = rate > 0.6 ? '#7dff9a' : (rate > 0.3 ? '#ffd45e' : '#ff6a6a');
+        if (rate <= 0.3 && Math.sin(G.t * 10) > 0) g.fillStyle = '#ffffff';
+      } else {
+        g.fillStyle = 'rgba(120,150,190,.22)';
+      }
+      g.fillRect(ox + i * (bw + gap), y, bw, bh);
+    }
+
+    /* バリアは体力の手前に積まれるので、その右に続けて出す */
+    if (G.pw.shield > 0) {
+      var sx = ox + pl.maxHp * (bw + gap) + 6;
+      g.fillStyle = '#ff8f5e';
+      g.fillText('◆' + G.pw.shield, sx, y + 8);
+    }
+  };
+
+  /* ---------- 機体選択 ---------- */
+  HUD.drawSelect = function (G, g) {
+    g.fillStyle = 'rgba(3,6,16,.86)';
+    g.fillRect(0, 0, CFG.W, CFG.H);
+
+    g.textAlign = 'center';
+    g.font = 'bold 20px monospace';
+    g.fillStyle = '#eaf4ff';
+    g.fillText('機体を選ぶ', CFG.W / 2, 44);
+    g.font = '10px monospace';
+    g.fillStyle = '#6f95c9';
+    g.fillText('強さの総和は揃えてある。どこを捨てるかを選ぶ', CFG.W / 2, 62);
+
+    var n = CFG.ships.length;
+    var cw = 136, gap = 12;
+    var total = n * cw + (n - 1) * gap;
+    var x0 = (CFG.W - total) / 2, y0 = 82, ch = 214;
+
+    for (var i = 0; i < n; i++) {
+      var sh = CFG.ships[i];
+      var x = x0 + i * (cw + gap);
+      var on = (i === G.shipIndex);
+
+      g.fillStyle = on ? 'rgba(18,34,64,.95)' : 'rgba(9,14,28,.8)';
+      g.fillRect(x, y0, cw, ch);
+      g.strokeStyle = on ? sh.color : 'rgba(90,140,220,.3)';
+      g.lineWidth = on ? 2 : 1;
+      g.strokeRect(x + 0.5, y0 + 0.5, cw - 1, ch - 1);
+
+      /* 機体の絵。画像があればそれを、無ければ簡単な図形を描く */
+      var cx = x + cw / 2, cy = y0 + 42;
+      if (!Sprites.draw(g, 'ship-' + sh.id, cx, cy, 34)) {
+        g.save();
+        g.translate(cx, cy);
+        g.fillStyle = on ? '#dbe9ff' : '#8fa6c8';
+        g.beginPath();
+        g.moveTo(22, 0); g.lineTo(2, -8); g.lineTo(-13, -10); g.lineTo(-8, 0);
+        g.lineTo(-13, 10); g.lineTo(2, 8); g.closePath(); g.fill();
+        g.fillStyle = sh.color;
+        g.beginPath();
+        g.moveTo(15, 0); g.lineTo(0, -4); g.lineTo(-8, 0); g.lineTo(0, 4); g.closePath(); g.fill();
+        g.restore();
+      }
+
+      g.textAlign = 'center';
+      g.font = 'bold 14px monospace';
+      g.fillStyle = on ? sh.color : '#9fb6d6';
+      g.fillText(sh.name, cx, y0 + 82);
+      g.font = 'bold 11px monospace';
+      g.fillStyle = on ? '#eaf4ff' : '#7f96b8';
+      g.fillText(sh.jp, cx, y0 + 98);
+
+      /* 3 つの指標を同じ軸で並べる。機体ごとの差が形で分かるように */
+      var stats = [
+        { k: '耐久', v: sh.hp / 9 },
+        { k: '速度', v: (195 + sh.speedMod - 160) / 80 },
+        { k: '連射', v: (1.25 - sh.fireMul) / 0.45 }
+      ];
+      for (var s2 = 0; s2 < stats.length; s2++) {
+        var sy = y0 + 116 + s2 * 16;
+        g.textAlign = 'left';
+        g.font = '9px monospace';
+        g.fillStyle = '#6f95c9';
+        g.fillText(stats[s2].k, x + 10, sy + 7);
+        var barX = x + 38, barW = cw - 48;
+        g.fillStyle = 'rgba(120,150,190,.2)';
+        g.fillRect(barX, sy, barW, 7);
+        g.fillStyle = on ? sh.color : 'rgba(140,170,210,.5)';
+        g.fillRect(barX, sy, barW * U.clamp(stats[s2].v, 0.08, 1), 7);
+      }
+
+      /* 初期装備 */
+      g.textAlign = 'center';
+      g.font = '9px monospace';
+      g.fillStyle = '#9fd0ff';
+      var eq = [];
+      for (var key in sh.start) eq.push(key.toUpperCase() + ' ' + sh.start[key]);
+      g.fillText(eq.join('  '), cx, y0 + 180);
+
+      g.fillStyle = on ? '#cfe3ff' : '#60779a';
+      g.font = '9px monospace';
+      wrapText(g, sh.desc, cx, y0 + 196, cw - 14, 11);
+    }
+
+    var sel = CFG.ships[G.shipIndex];
+    g.textAlign = 'center';
+    g.font = '11px monospace';
+    g.fillStyle = sel.color;
+    g.fillText(sel.detail, CFG.W / 2, 318);
+
+    var a = 0.5 + Math.sin(G.t * 5) * 0.5;
+    g.font = 'bold 13px monospace';
+    g.fillStyle = 'rgba(255,255,255,' + a + ')';
+    g.fillText('← →  で選択      Z  で決定', CFG.W / 2, 346);
+    g.textAlign = 'left';
+  };
+
+  /* 枠に収まるように折り返して描く */
+  function wrapText(g, text, cx, y, maxW, lh) {
+    var line = '', lines = [];
+    for (var i = 0; i < text.length; i++) {
+      var test = line + text[i];
+      if (g.measureText(test).width > maxW && line) { lines.push(line); line = text[i]; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+    for (var j = 0; j < lines.length; j++) g.fillText(lines[j], cx, y + j * lh);
+  }
 
   /* ---------- タイトル ---------- */
   HUD.drawTitle = function (G, g) {
@@ -163,12 +311,13 @@
     g.font = '10px monospace';
     g.fillText('移動 ARROW / WASD     ショット Z（押しっぱなし）     パワーアップ X', CFG.W / 2, 232);
     g.fillText('ボム C     低速 SHIFT     ポーズ P     ミュート M', CFG.W / 2, 248);
-    g.fillText('赤いカプセルでメーターを進め、X で好きな装備を取る。雲を撃つとベルが出る。', CFG.W / 2, 272);
+    g.fillText('機体は 4 種類から選択。体力制なので数発は耐えられる。', CFG.W / 2, 272);
+    g.fillText('赤いカプセルでメーターを進め、X で好きな装備を取る。雲を撃つとベルが出る。', CFG.W / 2, 288);
 
     var a = 0.5 + Math.sin(t * 5) * 0.5;
     g.font = 'bold 15px monospace';
     g.fillStyle = 'rgba(255,255,255,' + a + ')';
-    g.fillText('PRESS  Z  TO  START', CFG.W / 2, 318);
+    g.fillText('PRESS  Z  TO  START', CFG.W / 2, 330);
     g.textAlign = 'left';
   };
 
@@ -197,6 +346,9 @@
     g.font = 'bold 14px monospace';
     g.fillStyle = 'rgba(255,255,255,' + a + ')';
     g.fillText('PRESS  Z  TO  RETRY', CFG.W / 2, 296);
+    g.font = '10px monospace';
+    g.fillStyle = '#6f95c9';
+    g.fillText('機体 ' + (CFG.ships[G.shipIndex] ? CFG.ships[G.shipIndex].name : '') + ' で挑戦', CFG.W / 2, 268);
     g.textAlign = 'left';
   };
 

@@ -3,6 +3,10 @@
    ---------------------------------------------------------
    オプションは「自機の軌跡を n フレーム遅れでなぞる」方式。
    グラディウスと同じで、動いた道をそのまま追ってくる。
+
+   自機は体力制。1 発で落ちるのではなく HP を削られ、
+   0 になって初めて撃墜される。機体ごとに HP・速度・
+   連射速度・当たり判定の大きさが違う。
    ========================================================= */
 (function (w) {
   'use strict';
@@ -11,9 +15,12 @@
   var Player = {};
   var HIST = (WP.optionMax + 1) * WP.optionGap + 8;
 
-  Player.create = function () {
+  Player.create = function (ship) {
+    ship = ship || CFG.ships[0];
     var pl = {
-      x: P.x, y: P.y, r: P.r,
+      ship: ship,
+      x: P.x, y: P.y, r: ship.hitR,
+      hp: ship.hp, maxHp: ship.hp,
       vx: 0, vy: 0,
       cool: 0, hcool: 0, ccool: 0,
       inv: P.invincible,
@@ -21,14 +28,15 @@
       hist: [],
       opts: [],
       tilt: 0,
-      engine: 0
+      engine: 0,
+      hurt: 0            // 被弾直後の赤い明滅用
     };
     for (var i = 0; i < HIST; i++) pl.hist.push({ x: pl.x, y: pl.y });
     return pl;
   };
 
   Player.speed = function (G) {
-    return P.baseSpeed + G.pw.speed * P.speedStep;
+    return P.baseSpeed + G.pw.speed * P.speedStep + (G.player.ship.speedMod || 0);
   };
 
   Player.update = function (G, dt) {
@@ -40,6 +48,7 @@
       if (pl.wait <= 0) {
         pl.alive = true;
         pl.x = P.x; pl.y = CFG.H / 2;
+        pl.hp = pl.maxHp;
         pl.inv = P.invincible;
         for (var h = 0; h < pl.hist.length; h++) { pl.hist[h].x = pl.x; pl.hist[h].y = pl.y; }
       }
@@ -47,6 +56,7 @@
     }
 
     if (pl.inv > 0) pl.inv -= dt;
+    if (pl.hurt > 0) pl.hurt -= dt;
 
     /* --- 移動 --- */
     var ax = Input.axis();
@@ -70,7 +80,7 @@
     /* --- ショット --- */
     pl.cool -= dt;
     if (Input.down('shot') && pl.cool <= 0) {
-      pl.cool = Weapons.fireInterval(G);
+      pl.cool = Weapons.fireInterval(G) * pl.ship.fireMul;
       Weapons.fireFrom(G, pl.x + 16, pl.y, false);
       for (var o = 0; o < pl.opts.length; o++) {
         Weapons.fireFrom(G, pl.opts[o].x + 10, pl.opts[o].y, true);
@@ -97,26 +107,44 @@
     }
   };
 
-  /* 被弾。シールドがあれば吸収する。true を返したらミス */
-  Player.damage = function (G) {
+  /* 被弾。順番は バリア → HP。
+     HP が 0 になったときだけ true（撃墜）を返す。
+     amount を省略すると 1 ダメージ */
+  Player.damage = function (G, amount) {
     var pl = G.player;
     if (!pl.alive || pl.inv > 0 || G.state !== 'playing') return false;
+
+    /* バリアがあるうちは HP を削らない。
+       吸収のたびに短い無敵を付ける。これが無いと敵に重なっている間は
+       1 フレームに 1 枚ずつ削れ、「5 回耐える」はずのバリアが
+       0.08 秒で消えてしまう */
     if (G.pw.shield > 0) {
       G.pw.shield--;
-      /* 吸収のたびに短い無敵を付ける。
-         これが無いと敵に重なっている間は 1 フレームに 1 枚ずつ削れ、
-         「5 回耐える」はずのバリアが 0.08 秒で消えてしまう */
       pl.inv = P.shieldGrace;
       FX.ring(pl.x, pl.y, 18, 120, 0.28, 30, 3);
       FX.doFlash(0.12, 30);
       Snd.hit();
       return false;
     }
+
+    pl.hp -= (amount || 1);
+    pl.hurt = 0.3;
+
+    if (pl.hp > 0) {
+      /* まだ生きている。短い無敵を与えて立て直す時間を作る */
+      pl.inv = P.hitInvuln;
+      FX.ring(pl.x, pl.y, 14, 150, 0.25, 0, 2);
+      FX.doFlash(0.18, 0);
+      FX.text(pl.x, pl.y - 22, '-' + (amount || 1), '#ff6a6a', 12);
+      Snd.damage();
+      return false;
+    }
+
+    pl.hp = 0;
     pl.alive = false;
     pl.wait = P.respawn;
     FX.boom(pl.x, pl.y, 2.4, 30);
     FX.doFlash(0.5, 20);
-    FX.addShake(12);
     Snd.death();
     return true;
   };
@@ -129,6 +157,10 @@
     for (var i = 0; i < pl.opts.length; i++) {
       var o = pl.opts[i];
       var ph = G.t * 6 + i;
+      if (Sprites.has('option')) {
+        Sprites.draw(g, 'option', o.x, o.y, 16);
+        continue;
+      }
       g.save();
       g.translate(o.x, o.y);
       g.globalCompositeOperation = 'lighter';
@@ -147,6 +179,20 @@
     /* 無敵中は点滅 */
     if (pl.inv > 0 && ((G.t * 20) | 0) % 2 === 0) return;
 
+    /* sprite/ship-<id>.png があればそれを使う。無ければ下のベクタ絵 */
+    if (Sprites.has('ship-' + pl.ship.id)) {
+      var fl2 = 10 + Math.sin(pl.engine) * 4;
+      g.globalCompositeOperation = 'lighter';
+      g.fillStyle = U.hsl(200, 100, 62, 0.8);
+      g.beginPath();
+      g.moveTo(pl.x - 11, pl.y - 3.5); g.lineTo(pl.x - 11 - fl2, pl.y); g.lineTo(pl.x - 11, pl.y + 3.5);
+      g.closePath(); g.fill();
+      g.globalCompositeOperation = 'source-over';
+      Sprites.draw(g, 'ship-' + pl.ship.id, pl.x, pl.y, pl.ship.id === 'heavy' ? 30 : 26, pl.tilt);
+      drawShield(G, g, pl);
+      return;
+    }
+
     g.save();
     g.translate(pl.x, pl.y);
     g.rotate(pl.tilt);
@@ -162,29 +208,31 @@
     g.moveTo(-11, -1.6); g.lineTo(-11 - fl * 0.55, 0); g.lineTo(-11, 1.6); g.closePath(); g.fill();
     g.globalCompositeOperation = 'source-over';
 
-    /* 機体 */
-    g.fillStyle = '#dbe9ff';
+    /* 機体。被弾直後は赤く光らせて、HP が減ったことを分かりやすくする */
+    g.fillStyle = pl.hurt > 0 ? '#ff9aa0' : '#dbe9ff';
     g.beginPath();
     g.moveTo(19, 0); g.lineTo(2, -6); g.lineTo(-11, -8); g.lineTo(-7, 0);
     g.lineTo(-11, 8); g.lineTo(2, 6); g.closePath(); g.fill();
-    g.fillStyle = '#5fa8ff';
+    g.fillStyle = pl.ship.color;      // 機体ごとの差し色
     g.beginPath();
     g.moveTo(13, 0); g.lineTo(0, -3.4); g.lineTo(-7, 0); g.lineTo(0, 3.4); g.closePath(); g.fill();
     g.fillStyle = '#fff';
     g.fillRect(4, -1, 4, 2);
     g.restore();
 
-    /* シールド */
-    if (G.pw.shield > 0) {
-      var maxHits = WP.shieldHits[Math.max(0, G.pw.force - 1)] || 3;
-      var a = 0.22 + 0.13 * (G.pw.shield / maxHits) + Math.sin(G.t * 9) * 0.05;
-      g.strokeStyle = U.hsl(24, 100, 66, a + 0.35);
-      g.lineWidth = 2;
-      g.beginPath(); g.arc(pl.x, pl.y, 22, 0, U.TAU); g.stroke();
-      g.fillStyle = U.hsl(24, 100, 60, a * 0.35);
-      g.beginPath(); g.arc(pl.x, pl.y, 22, 0, U.TAU); g.fill();
-    }
+    drawShield(G, g, pl);
   };
+
+  function drawShield(G, g, pl) {
+    if (G.pw.shield <= 0) return;
+    var maxHits = WP.shieldHits[Math.max(0, G.pw.force - 1)] || 3;
+    var a = 0.22 + 0.13 * (G.pw.shield / maxHits) + Math.sin(G.t * 9) * 0.05;
+    g.strokeStyle = U.hsl(24, 100, 66, a + 0.35);
+    g.lineWidth = 2;
+    g.beginPath(); g.arc(pl.x, pl.y, 22, 0, U.TAU); g.stroke();
+    g.fillStyle = U.hsl(24, 100, 60, a * 0.35);
+    g.beginPath(); g.arc(pl.x, pl.y, 22, 0, U.TAU); g.fill();
+  }
 
   w.Player = Player;
 })(window);

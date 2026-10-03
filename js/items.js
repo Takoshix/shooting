@@ -179,14 +179,19 @@
       var o = G.it[i];
       /* 消える直前は点滅させて知らせる */
       if (o.life < 3 && ((o.t * 12) | 0) % 2 === 0) continue;
-      var img, y = o.y;
+      var y = o.y;
       if (o.kind === 'capsule') {
-        img = SPR.capsule;
+        /* sprite/item-capsule.png があればそれを使う */
+        if (!Sprites.draw(g, 'item-capsule', o.x, y, 20)) {
+          g.drawImage(SPR.capsule, (o.x - SH) | 0, (y - SH) | 0);
+        }
       } else {
-        img = SPR.bells[o.idx];
         y += Math.sin(o.t * 7) * 1.6;
+        var id = 'bell-' + BELLS[o.idx].name.toLowerCase();
+        if (!Sprites.draw(g, id, o.x, y, 24)) {
+          g.drawImage(SPR.bells[o.idx], (o.x - SH) | 0, (y - SH) | 0);
+        }
       }
-      g.drawImage(img, (o.x - SH) | 0, (y - SH) | 0);
     }
   };
 

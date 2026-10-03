@@ -53,9 +53,22 @@
       speedStep: 32,   // SPEED を 1 段取るごとの上昇量
       speedMax: 6,     // SPEED の最大段数
       slowRate: 0.42,  // Shift 低速時の倍率
-      invincible: 2.4, // ミス後の無敵秒数
-      respawn: 0.9,    // ミス後の復帰待ち秒数
-      shieldGrace: 0.5 // バリアで 1 発受けたあとの短い無敵秒数
+      invincible: 2.4, // 撃墜されて復帰したあとの無敵秒数
+      respawn: 0.9,    // 撃墜後の復帰待ち秒数
+      shieldGrace: 0.5,// バリアで 1 発受けたあとの短い無敵秒数
+
+      /* ---------------------------------------------------------
+         体力制。1 発で落ちるのをやめ、HP を削り合う形にした。
+         1 発即死だと、敵弾を増やした瞬間に理不尽になる。
+         体力の器を持たせたうえで弾を増やすほうが、
+         「濃いけれど対処できる」状態を作りやすい。
+         --------------------------------------------------------- */
+      hitInvuln: 1.0,      // 被弾後の無敵秒数。連続ヒットで溶けるのを防ぐ
+      contactDamage: 1,    // ザコに接触したときの被害
+      heavyDamage: 2,      // 大型・重装に接触したときの被害
+      bulletDamage: 1,     // 敵弾 1 発の被害
+      repairOnForce: 1,    // FORCE を取ると HP も少し戻る
+      lives: 2             // 残機（HP を使い切れる回数）
     },
 
     /* ---------- 自機の武器 ---------- */
@@ -92,6 +105,52 @@
       forceMax: 5,           // フォースフィールドの段数
       shieldHits: [3, 5, 7, 9, 12]  // 各段での耐弾数
     },
+
+    /* ---------------------------------------------------------
+       自機の種類。開始時に選ぶ。
+       「速い／硬い／手数が多い」のどれを取るかで、
+       同じ武器を取っても戦い方が変わるようにしてある。
+       強さの総和はおおむね揃えてあり、上位互換は作っていない。
+
+       speedMod … 基本速度への加算(px/秒)
+       fireMul  … ショット間隔の倍率。小さいほど速射
+       hitR     … 当たり判定の半径。大きい機体は被弾しやすい
+       start    … 最初から持っている装備
+       --------------------------------------------------------- */
+    ships: [
+      {
+        id: 'balance', name: 'TYPE-B', jp: 'バランス',
+        hp: 5, speedMod: 0, fireMul: 1.00, hitR: 3.5,
+        start: { vulcan: 1 },
+        color: '#7fe3ff',
+        desc: 'どれも平均。迷ったらこれ',
+        detail: '癖が無く、どの武器を伸ばしても噛み合う'
+      },
+      {
+        id: 'assault', name: 'TYPE-A', jp: '強襲',
+        hp: 3, speedMod: 34, fireMul: 0.84, hitR: 3.2,
+        start: { vulcan: 2 },
+        color: '#ff8f5e',
+        desc: '速いが打たれ弱い',
+        detail: '避けきる前提の機体。HP は 3 しかない'
+      },
+      {
+        id: 'heavy', name: 'TYPE-H', jp: '重装',
+        hp: 9, speedMod: -30, fireMul: 1.18, hitR: 4.4,
+        start: { cluster: 2 },
+        color: '#ffd45e',
+        desc: '硬いが鈍い',
+        detail: 'CLUSTER 持ち。多少の被弾は許容して撃ち込み続ける'
+      },
+      {
+        id: 'support', name: 'TYPE-S', jp: '支援',
+        hp: 4, speedMod: 10, fireMul: 1.00, hitR: 3.5,
+        start: { homing: 2, options: 1 },
+        color: '#b79cff',
+        desc: '当てるのが楽',
+        detail: 'HOMING とオプションを最初から持つ。詰めは利かない'
+      }
+    ],
 
     /* パワーメーター（グラディウス方式）のスロット。
        カプセルを取るとカーソルが 1 つ進み、X で発動して消費する。 */
@@ -141,15 +200,17 @@
        どれも線形・上限つき。いじるならここだけ見れば足りる。
        ========================================================= */
     curve: {
-      /* 画面に出せる敵弾の総数。これが難易度の主スイッチ */
-      budget:   { base: 18,   per: 1.60,   max: 62 },
+      /* 画面に出せる敵弾の総数。これが難易度の主スイッチ。
+         1 発即死をやめて体力制にしたぶん、ここを引き上げてある
+         （上限 62 → 86 発）。器を持たせてから弾を増やす、という順序 */
+      budget:   { base: 24,   per: 2.20,   max: 86 },
       /* 敵弾の速さ(px/秒)。自機の最低速度 195 は超えさせない。
          超えると「見てから避ける」が成立せず、質の違う難しさになる */
       speed:    { base: 120,  per: 3.00,   max: 188 },
       /* 狙い撃ちのブレ幅(rad)。小さいほど正確＝難しい */
       aim:      { base: 0.20, per: -0.006, min: 0.06 },
       /* 撃ってくる敵の画面内上限。超える分はザコに差し替わる */
-      armed:    { base: 8,    per: 0.95,   max: 34 },
+      armed:    { base: 9,    per: 1.10,   max: 40 },
       /* 重装敵（HP 10 以上）だけに掛かる HP 倍率。
          ザコの HP は 1〜2 のまま動かさない。
          全体を硬くすると「武器を強くした手応え」がそのまま消えるが、
@@ -295,6 +356,20 @@
   /* 1 秒あたりに湧く敵の数（＝密度の指標）。時間とともに増える */
   CFG.enemiesPerSecond = function (wave) {
     return CFG.spawnCount(wave) / CFG.spawnInterval(wave);
+  };
+
+  /* sprite/ から読みに行く画像の名前一覧。
+     無いものは黙って無視され、ベクタ絵のまま動く（sprite/README.md 参照） */
+  CFG.spriteList = function () {
+    var list = ['option', 'item-capsule'];
+    for (var i = 0; i < CFG.ships.length; i++) list.push('ship-' + CFG.ships[i].id);
+    var enemies = ['zako', 'waver', 'diver', 'turret', 'cloud', 'pod',
+                   'sentry', 'sniper', 'gunship', 'bulwark',
+                   'weaver', 'splitter', 'shielder', 'mine', 'carrier', 'core'];
+    for (var j = 0; j < enemies.length; j++) list.push('enemy-' + enemies[j]);
+    var bells = ['score', 'speed', 'vulcan', 'homing', 'option', 'force'];
+    for (var k = 0; k < bells.length; k++) list.push('bell-' + bells[k]);
+    return list;
   };
 
   w.CFG = CFG;

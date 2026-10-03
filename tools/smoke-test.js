@@ -37,10 +37,19 @@ function serve() {
 
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    /* sprite/ の 404 は想定内。用意していない画像はベクタ絵に自動で落ちる仕様なので、
+       「画像が無い」ことをエラーとして数えない */
+    const loc = (m.location && m.location().url) || '';
+    if (loc.indexOf('/sprite/') >= 0) return;
+    errors.push('console: ' + m.text());
+  });
 
   await page.goto(`http://127.0.0.1:${port}/index.html`);
   await page.waitForFunction(() => !!window.__game, null, { timeout: 5000 });
+  /* 機体選択を挟むようになったので、テストは機体 0 で開始する */
+  await page.evaluate(() => { window.__game.G.state = 'select'; });
   await page.waitForTimeout(300);
   fs.mkdirSync(path.join(ROOT, 'docs'), { recursive: true });
   await page.screenshot({ path: path.join(ROOT, 'docs/shot-title.png') });

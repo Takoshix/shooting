@@ -26,6 +26,11 @@
     sniper:  { hp: 10, r: 12, score: 1000,  hue: 52,  shape: 'sniper',  pat: 'edge',     spd: 130, fires: 'snipe',  gap: [1.3, 2.2], capChance: 0.30, linger: 7 },
     gunship: { hp: 24, r: 18, score: 2600,  hue: 32,  shape: 'gunship', pat: 'strafe',   spd: 98, fires: 'spread', burst: 2, gap: [1.4, 2.4], capChance: 0.60 },
     bulwark: { hp: 38, r: 22, score: 4200,  hue: 218, shape: 'bulwark', pat: 'push',     spd: 36, fires: 'fan',    gap: [1.8, 2.8], capChance: 0.95 },
+    /* --- 動きと倒し方に癖のある敵 --- */
+    weaver:   { hp: 6,  r: 12, score: 800,   hue: 72,  shape: 'weaver',   pat: 'loop',   spd: 185 },
+    splitter: { hp: 12, r: 16, score: 1400,  hue: 185, shape: 'splitter', pat: 'sine',   spd: 96, splits: 2, capChance: 0.2 },
+    shielder: { hp: 20, r: 18, score: 2400,  hue: 250, shape: 'shielder', pat: 'push',   spd: 44, fires: 'aim', gap: [1.9, 3.0], armor: 14, capChance: 0.5 },
+    mine:     { hp: 4,  r: 13, score: 700,   hue: 15,  shape: 'mine',     pat: 'drift',  spd: 30, burstOnDeath: 8, proximity: 54 },
     carrier: { hp: 46, r: 27, score: 6000,  hue: 18,  shape: 'carrier', pat: 'slow',     spd: 46, fires: 'aim', caps: 2 },
     core:    { hp: 300,r: 46, score: 50000, hue: 350, shape: 'core',    pat: 'boss',     spd: 60, fires: 'boss', caps: 4, boss: true }
   };
@@ -79,6 +84,9 @@
     }
     /* 連射する敵の残弾カウンタ */
     e.burstLeft = (d.burst || 1) - 1;
+    /* 前面装甲。壊れるまでダメージを大きく減らす */
+    e.armor = d.armor ? Math.round(d.armor * CFG.toughness(CFG.threatWave(G))) : 0;
+    e.armorMax = e.armor;
 
     if (type === 'core') e.hp = e.maxhp = Math.round((d.hp + G.wave * 45) * CFG.toughness(CFG.threatWave(G)));
     G.en.push(e);
@@ -112,6 +120,18 @@
     });
   }
   Enemies.eBullet = eBullet;
+
+  /* 全方位に弾をばらまく。機雷の破裂で使う。
+     ここでも弾幕予算は必ず確認する。予算を無視する経路を 1 つでも作ると、
+     画面上の弾数の上限という保証そのものが意味を失うため */
+  Enemies.burst = function (G, e) {
+    var n = e.def.burstOnDeath || 8;
+    var base = Math.random() * U.TAU;
+    for (var i = 0; i < n; i++) {
+      if (!Enemies.canFire(G)) break;
+      eBullet(G, e.x, e.y, base + i / n * U.TAU, 0.85);
+    }
+  };
 
   function aimAt(G, e) {
     var pl = G.player;
@@ -208,6 +228,22 @@
         e.y += Math.sin(e.t * 2.2) * 30 * dt;
       }
     },
+    /* 左へ抜けたあと、上下から回り込んで戻ってくる。
+       「前からだけ来る」という前提を崩す役 */
+    loop: function (e, dt, G) {
+      if (e.phase === undefined) { e.phase = 0; e.turnDir = e.y < CFG.H / 2 ? -1 : 1; }
+      if (e.phase === 0) {
+        e.x += e.vx * dt;
+        if (e.x < CFG.W * 0.3) e.phase = 1;
+      } else if (e.phase === 1) {
+        e.x -= 30 * dt;
+        e.y += e.turnDir * 190 * dt;
+        if (e.y < 26 || e.y > CFG.H - 48) { e.phase = 2; e.y = U.clamp(e.y, 26, CFG.H - 48); }
+      } else {
+        e.x += 150 * dt;              // 右へ戻っていく
+        e.y += Math.sin(e.t * 3) * 40 * dt;
+      }
+    },
     /* ゆっくり確実に前進してくる重装。放置すると詰められる */
     push: function (e, dt) { e.x += e.vx * dt; },
     boss: function (e, dt) {
@@ -240,6 +276,20 @@
           }
         }
       }
+      /* 機雷は自機が近づくと自分から破裂する。
+         倒すか、避けて通るかを選ばせるのが狙い */
+      if (e.def.proximity && G.player.alive && !e.dead) {
+        var pdx = G.player.x - e.x, pdy = G.player.y - e.y;
+        if (pdx * pdx + pdy * pdy < e.def.proximity * e.def.proximity) {
+          Enemies.burst(G, e);
+          e.dead = true;
+          FX.boom(e.x, e.y, 1.2, e.hue);
+          Snd.boom(1.0);
+          if (e.fid && G.forms[e.fid]) G.forms[e.fid].alive--;
+          continue;
+        }
+      }
+
       /* 画面外へ抜けたら消す（倒せなくても危険が増えない） */
       if (e.x < -70 || e.y < -90 || e.y > CFG.H + 90) {
         e.dead = true;
@@ -357,6 +407,42 @@
       g.fillStyle = '#ff5a6a';
       g.beginPath(); g.arc(14, 0, 5, 0, U.TAU); g.fill();
     },
+    weaver: function (g, e) {
+      g.beginPath();
+      g.moveTo(12, 0); g.lineTo(-2, -10); g.lineTo(-12, -4);
+      g.lineTo(-6, 0); g.lineTo(-12, 4); g.lineTo(-2, 10);
+      g.closePath(); g.fill();
+      g.fillStyle = '#17290a'; g.fillRect(-4, -2, 8, 4);
+    },
+    splitter: function (g, e) {
+      g.beginPath();
+      g.moveTo(14, 0); g.lineTo(2, -13); g.lineTo(-13, -8);
+      g.lineTo(-13, 8); g.lineTo(2, 13); g.closePath(); g.fill();
+      /* 割れ目を描いておく。見ただけで分裂しそうと分かるように */
+      g.fillStyle = '#06161c';
+      g.fillRect(-13, -2, 27, 4);
+      g.fillStyle = '#fff';
+      g.fillRect(4, -1.5, 5, 3);
+    },
+    shielder: function (g, e) {
+      g.fillRect(-16, -16, 30, 32);
+      g.fillStyle = '#14103a';
+      g.fillRect(-10, -9, 18, 18);
+      g.fillStyle = '#ff5a6a';
+      g.beginPath(); g.arc(-1, 0, 4.5, 0, U.TAU); g.fill();
+    },
+    mine: function (g, e) {
+      /* 棘のある球。近づくと危ない見た目にする */
+      for (var i = 0; i < 8; i++) {
+        var a = i / 8 * U.TAU + e.t * 0.8;
+        g.fillRect(Math.cos(a) * 11 - 2, Math.sin(a) * 11 - 2, 4, 4);
+      }
+      g.beginPath(); g.arc(0, 0, 8, 0, U.TAU); g.fill();
+      g.fillStyle = '#2a0b05';
+      g.beginPath(); g.arc(0, 0, 4.5, 0, U.TAU); g.fill();
+      g.fillStyle = '#ffd24a';
+      g.beginPath(); g.arc(0, 0, 2.2 + Math.sin(e.t * 9) * 1, 0, U.TAU); g.fill();
+    },
     carrier: function (g, e) {
       g.fillRect(-26, -14, 52, 28);
       g.beginPath(); g.moveTo(-26, -14); g.lineTo(-40, 0); g.lineTo(-26, 14); g.closePath(); g.fill();
@@ -380,40 +466,78 @@
 
   /* ---------------------------------------------------------
      スプライトキャッシュ。
-     敵は最大 250 匹ほど同時に出るので、毎フレーム
+     敵は最大 190 匹ほど同時に出るので、毎フレーム
      beginPath/arc でベクタ描画すると重い。
      起動時に 1 回だけ小さなオフスクリーンへ描いておき、
      あとは drawImage 1 回で済ませる。
-     （core だけはコアが脈動するので毎回その場で描く）
+
+     sprite/enemy-<種類>.png があればそれを焼き込み、
+     無ければコードで描いたベクタ絵を焼き込む。
+     どちらの場合も被弾時の白い版を同時に作っておく
+     （画像を毎フレーム白く染めるのは重いため）。
      --------------------------------------------------------- */
   var SPR = null;
 
-  function buildSprites() {
-    SPR = {};
-    for (var name in TYPES) {
-      if (name === 'core') continue;
-      var d = TYPES[name];
-      var half = Math.ceil(d.r * 1.7);
-      SPR[name] = { half: half, normal: bake(d, half, false), flash: bake(d, half, true) };
-    }
-  }
+  /* 画像を読み込んだときに呼ばれ、次の描画で作り直させる */
+  Enemies.invalidateSprites = function () { SPR = null; };
 
   /* 被弾時の色。
      硬い敵は絶えず撃たれ続けるので、真っ白にすると常時白のままになり、
-     何の敵か分からなくなる（実際にボスが白い塊に見えていた）。
-     HP の多い敵は「白」ではなく「明るい自分の色」で光らせる */
+     何の敵か分からなくなる。HP の多い敵は明るい自分の色で光らせる */
   function hitColor(d) {
     return d.hp >= 20 ? U.hsl(d.hue, 85, 80) : '#ffffff';
   }
 
-  function bake(d, half, white) {
+  function makeCanvas(w2, h2) {
     var c = document.createElement('canvas');
-    c.width = c.height = half * 2;
+    c.width = Math.max(2, Math.ceil(w2));
+    c.height = Math.max(2, Math.ceil(h2));
+    return c;
+  }
+
+  /* 画像から焼く */
+  function bakeImage(img, h, white, d) {
+    var scale = h / img.naturalHeight;
+    var ww = img.naturalWidth * scale;
+    var c = makeCanvas(ww, h);
+    var g = c.getContext('2d');
+    g.drawImage(img, 0, 0, c.width, c.height);
+    if (white) {
+      /* source-atop なら不透明な部分だけを塗れる＝輪郭が崩れない */
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = hitColor(d);
+      g.globalAlpha = 0.85;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+    return c;
+  }
+
+  /* ベクタ絵から焼く */
+  function bakeShape(d, half, white) {
+    var c = makeCanvas(half * 2, half * 2);
     var g = c.getContext('2d');
     g.translate(half, half);
     g.fillStyle = white ? hitColor(d) : U.hsl(d.hue, 78, 58);
     (SHAPE[d.shape] || SHAPE.wedge)(g, { t: 0 });
     return c;
+  }
+
+  function buildSprites() {
+    SPR = {};
+    for (var name in TYPES) {
+      var d = TYPES[name];
+      var img = Sprites.get('enemy-' + name);
+      if (img) {
+        var h = d.sprH || Math.round(d.r * 2.2);
+        var n = bakeImage(img, h, false, d);
+        SPR[name] = { w: n.width, h: n.height, normal: n, flash: bakeImage(img, h, true, d) };
+      } else if (name === 'core') {
+        continue;                                   // ボスは脈動するのでその場で描く
+      } else {
+        var half = Math.ceil(d.r * 1.7);
+        SPR[name] = { w: half * 2, h: half * 2, normal: bakeShape(d, half, false), flash: bakeShape(d, half, true) };
+      }
+    }
   }
 
   Enemies.draw = function (G, g) {
@@ -422,13 +546,23 @@
       var e = G.en[i];
       var sp = SPR[e.type];
       if (sp) {
-        g.drawImage(e.flash > 0 ? sp.flash : sp.normal, (e.x - sp.half) | 0, (e.y - sp.half) | 0);
+        g.drawImage(e.flash > 0 ? sp.flash : sp.normal, (e.x - sp.w / 2) | 0, (e.y - sp.h / 2) | 0);
       } else {
         g.save();
         g.translate(e.x, e.y);
         g.fillStyle = e.flash > 0 ? hitColor(e.def) : U.hsl(e.hue, 78, 58);
         (SHAPE[e.shape] || SHAPE.wedge)(g, e);
         g.restore();
+      }
+
+      /* 前面装甲。残っているあいだは弧で囲って「硬い」と分かるようにする */
+      if (e.armor > 0) {
+        var a = 0.35 + 0.45 * (e.armor / e.armorMax);
+        g.strokeStyle = U.hsl(200, 90, 72, a);
+        g.lineWidth = 3;
+        g.beginPath();
+        g.arc(e.x, e.y, e.r + 6, -1.05, 1.05);
+        g.stroke();
       }
 
       /* 体力の多い敵だけ HP バーを出す */

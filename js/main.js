@@ -19,12 +19,15 @@
     Input.onFirstInput = function () { Snd.init(); Snd.resume(); };
 
     FX.initStars();
+    /* sprite/ に画像があれば使う。無ければベクタ絵のまま動く */
+    Sprites.preload(CFG.spriteList());
+    Sprites.onChange = function () { if (w.Enemies) Enemies.invalidateSprites(); };
     G.reset();
     G.state = 'title';
 
     w.addEventListener('keydown', function (e) {
       if (e.code === 'KeyM') { Snd.toggleMute(); }
-      if (e.code === 'KeyR' && G.state !== 'title') { G.reset(); G.state = 'playing'; }
+      if (e.code === 'KeyR' && G.state !== 'title') { G.reset(G.shipIndex); G.state = 'playing'; }
     });
 
     running = true;
@@ -68,7 +71,7 @@
   w.__game = {
     get G() { return G; },
     step: function (n) { for (var i = 0; i < (n || 1); i++) { G.update(CFG.DT); Input.endFrame(); } },
-    start: function () { G.reset(); G.state = 'playing'; }
+    start: function (shipIndex) { G.reset(shipIndex === undefined ? G.shipIndex : shipIndex); G.state = 'playing'; }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

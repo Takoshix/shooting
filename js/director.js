@@ -98,7 +98,43 @@
         later(G, i * 0.45, 'pod', CFG.W + 30, U.rand(50, CFG.H - 90));
       }
     },
+    /* 回り込み。左へ抜けたあと上下から戻ってくるので、
+       前だけ見ていると後ろから刺される */
+    weavers: function (G, n) {
+      var fid = fidSeq++;
+      var m = U.clamp(Math.round(n * 0.3), 3, 7);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.22, 'weaver', CFG.W + 24, U.rand(40, CFG.H - 70), { fid: fid });
+      }
+    },
+    /* 分裂体。倒すと 2 体に割れるので、処理が追いつかないと増えていく */
+    splitters: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.18), 2, 5);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.45, 'splitter', CFG.W + 30, U.rand(50, CFG.H - 90));
+      }
+    },
+    /* 機雷原。近づくと破裂するので、通る道を選ばされる */
+    mines: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.35), 3, 8);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.3, 'mine', CFG.W + 26, U.rand(36, CFG.H - 60));
+      }
+    },
+
     /* ---- ここから撃ち返してくる編隊。armedMix の確率で選ばれる ---- */
+
+    /* 盾持ち。前面装甲を割らないとまともに通らない */
+    shielders: function (G, n) {
+      var m = U.clamp(Math.round(n * 0.12), 1, 3);
+      for (var i = 0; i < m; i++) {
+        later(G, i * 0.7, 'shielder', CFG.W + 36, U.rand(70, CFG.H - 110));
+      }
+      var fid = fidSeq++;
+      for (var j = 0; j < Math.round(n * 0.4); j++) {
+        later(G, 0.9 + j * 0.13, 'zako', CFG.W + 24, U.rand(40, CFG.H - 70), { fid: fid });
+      }
+    },
 
     /* 連射砲台。3 連射してくるので、居座られると弾が溜まる */
     sentries: function (G, n) {
@@ -195,6 +231,7 @@
       var armed = ['sentries', 'turrets'];
       if (G.wave >= 3) armed.push('snipers');
       if (G.wave >= 5) armed.push('gunships', 'pods');
+      if (G.wave >= 6) armed.push('shielders');
       if (G.wave >= 7) armed.push('bulwarks', 'carrier');
       if (G.wave >= 9) armed.push('assault', 'assault');
       return U.pick(armed);
@@ -202,10 +239,12 @@
 
     var pool = ['train', 'wavey', 'vee'];
     if (G.wave >= 1) pool.push('clouds', 'divers');
-    if (G.wave >= 2) pool.push('swarm');
+    if (G.wave >= 2) pool.push('swarm', 'weavers');
+    if (G.wave >= 4) pool.push('mines');
+    if (G.wave >= 5) pool.push('splitters');
     if (G.wave >= 6) pool.push('swarm', 'wavey', 'train');
-    if (G.wave >= 8) pool.push('wall', 'rain', 'swarm');
-    if (G.wave >= 12) pool.push('wall', 'rain');
+    if (G.wave >= 8) pool.push('wall', 'rain', 'swarm', 'weavers');
+    if (G.wave >= 12) pool.push('wall', 'rain', 'mines');
     return U.pick(pool);
   }
 

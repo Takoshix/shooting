@@ -5,9 +5,10 @@
   'use strict';
 
   var G = {
-    state: 'title',      // title | playing | pause | over
+    state: 'title',      // title | select | playing | pause | over
     t: 0,
-    score: 0, hi: 0, lives: 3, bombs: CFG.bomb.start,
+    shipIndex: 0,        // 選択中の機体
+    score: 0, hi: 0, lives: CFG.player.lives, bombs: CFG.bomb.start,
     kills: 0, killsSinceCap: 0, bestChain: 0,
     chain: 0, chainT: 0,
     wave: 0, waveT: 0, spawnT: 0,
@@ -26,21 +27,26 @@
     if (G.score >= G.nextExtend) {
       G.nextExtend += 300000;
       G.lives++;
+      G.player.hp = G.player.maxHp;
       FX.text(G.player.x, G.player.y - 24, '1UP', '#7dff9a', 14);
       Snd.equip();
     }
   };
 
   /* ---------- 初期化 ---------- */
-  G.reset = function () {
+  G.reset = function (shipIndex) {
+    if (shipIndex !== undefined) G.shipIndex = shipIndex;
+    var ship = CFG.ships[G.shipIndex] || CFG.ships[0];
     G.t = 0;
-    G.score = 0; G.lives = 3; G.bombs = CFG.bomb.start;
+    G.score = 0; G.lives = CFG.player.lives; G.bombs = CFG.bomb.start;
     G.kills = 0; G.killsSinceCap = 0; G.bestChain = 0;
     G.chain = 0; G.chainT = 0;
     G.nextExtend = 300000;
     G.pb.length = 0; G.eb.length = 0; G.en.length = 0; G.it.length = 0;
     G.pw = Weapons.newPower();
-    G.player = Player.create();
+    /* 機体ごとの初期装備を積む */
+    for (var k in ship.start) G.pw[k] = ship.start[k];
+    G.player = Player.create(ship);
     G.bombT = 0;
     G.capCool = 0; G.textCool = 0;
     Director.reset(G);
@@ -87,6 +93,17 @@
       FX.stop(0.03); FX.doFlash(0.22, 30);
     }
 
+    /* 機雷は壊れると全方位に弾を撒く（弾幕予算の範囲内で） */
+    if (e.def.burstOnDeath) Enemies.burst(G, e);
+
+    /* 分裂体は小さい敵 2 体に割れる。倒したのに増える、という驚きを作る */
+    if (e.def.splits) {
+      for (var sp = 0; sp < e.def.splits; sp++) {
+        var child = Enemies.spawn(G, 'waver', e.x + U.rand(-8, 8), e.y + (sp ? 16 : -16));
+        if (child) { child.vx = -110; child.y0 = child.y; }
+      }
+    }
+
     /* --- アイテム供給 --- */
     /* (a) 雲を壊すとベル（ツインビー） */
     if (e.def.bell) Items.spawnBell(G, e.x, e.y);
@@ -122,6 +139,19 @@
   }
 
   function damageEnemy(G, e, dmg, x, y) {
+    /* 前面装甲。壊れるまでダメージを 1/4 に抑える。
+       「硬いから当て続ける」ではなく「まず殻を割る」という
+       2 段階の手応えを作るための仕掛け */
+    if (e.armor > 0) {
+      e.armor -= dmg;
+      if (e.armor <= 0) {
+        e.armor = 0;
+        FX.ring(e.x, e.y, 10, 190, 0.3, 200, 3);
+        FX.text(e.x, e.y - 22, '装甲破壊', '#7fe3ff', 11);
+        Snd.boom(0.7);
+      }
+      dmg = Math.max(1, Math.round(dmg * 0.25));
+    }
     e.hp -= dmg;
     e.flash = 0.06;
     FX.spat(x, y, e.hue);
@@ -206,7 +236,7 @@
       if (b.dead) continue;
       if (U.hit(b, pl)) {
         b.dead = true;
-        if (Player.damage(G)) { onPlayerDeath(G); return; }
+        if (Player.damage(G, CFG.player.bulletDamage)) { onPlayerDeath(G); return; }
       }
     }
     /* 敵本体 → 自機。体当たりはどの敵でも自機を壊す。
@@ -215,8 +245,10 @@
       e = G.en[i];
       if (e.dead) continue;
       if (!U.hit(e, pl)) continue;
+      /* 大きい敵にぶつかるほど痛い */
+      var dmg = (e.def.boss || e.def.hp >= 20) ? CFG.player.heavyDamage : CFG.player.contactDamage;
       if (!e.def.boss && e.maxhp <= 8) damageEnemy(G, e, 9999, e.x, e.y);
-      if (Player.damage(G)) { onPlayerDeath(G); return; }
+      if (Player.damage(G, dmg)) { onPlayerDeath(G); return; }
     }
     /* アイテム → 自機（取得判定は甘めに） */
     var grab = { x: pl.x, y: pl.y, r: pl.r + 16 };
@@ -258,14 +290,27 @@
     if (G.state === 'title') {
       FX.updateStars(dt, 0);
       FX.update(dt);
-      if (Input.tap('shot') || Input.tap('power')) { G.reset(); G.state = 'playing'; }
+      if (Input.tap('shot') || Input.tap('power')) G.state = 'select';
+      return;
+    }
+    if (G.state === 'select') {
+      FX.updateStars(dt, 0);
+      FX.update(dt);
+      var n = CFG.ships.length;
+      if (Input.tap('left'))  { G.shipIndex = (G.shipIndex + n - 1) % n; Snd.hit(); }
+      if (Input.tap('right')) { G.shipIndex = (G.shipIndex + 1) % n; Snd.hit(); }
+      if (Input.tap('up'))    { G.shipIndex = (G.shipIndex + n - 1) % n; Snd.hit(); }
+      if (Input.tap('down'))  { G.shipIndex = (G.shipIndex + 1) % n; Snd.hit(); }
+      if (Input.tap('shot') || Input.tap('power')) {
+        G.reset(G.shipIndex); G.state = 'playing'; Snd.equip();
+      }
       return;
     }
     if (G.state === 'over') {
       FX.updateStars(dt, 0);
       FX.update(dt);
       Enemies.update(G, dt);
-      if (Input.tap('shot') || Input.tap('power')) { G.reset(); G.state = 'playing'; }
+      if (Input.tap('shot') || Input.tap('power')) G.state = 'select';
       return;
     }
     if (Input.tap('pause')) {
@@ -285,6 +330,13 @@
     if (Input.tap('power')) {
       var r = Weapons.activate(G.pw);
       if (r) {
+        /* バリアを張り直すと、ついでに装甲も少し直る。
+           体力制だと回復手段が無いままでは、長く遊ぶほど
+           ただ削られて終わるだけになってしまうため */
+        if (r.slot.key === 'force' && G.player.hp < G.player.maxHp) {
+          G.player.hp = Math.min(G.player.maxHp, G.player.hp + CFG.player.repairOnForce);
+          FX.text(G.player.x, G.player.y - 38, 'REPAIR', '#7dff9a', 11);
+        }
         Snd.equip();
         FX.text(G.player.x, G.player.y - 26, r.msg, r.slot.color, 13);
         FX.ring(G.player.x, G.player.y, 12, 240, 0.35, 200, 3);
@@ -335,7 +387,7 @@
       g.globalCompositeOperation = 'source-over';
     }
 
-    if (G.state !== 'title') {
+    if (G.state !== 'title' && G.state !== 'select') {
       Items.draw(G, g);
       Enemies.draw(G, g);
       Weapons.drawBullets(G, g);
@@ -360,6 +412,7 @@
       HUD.drawMeter(G, g);
     }
     if (G.state === 'title') HUD.drawTitle(G, g);
+    if (G.state === 'select') HUD.drawSelect(G, g);
     if (G.state === 'over') HUD.drawOver(G, g);
     if (G.state === 'pause') HUD.drawPause(G, g);
 
